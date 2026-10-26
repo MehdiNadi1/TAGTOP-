@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <title>TAGTOP</title>
+    <script>
+      // Single Page Application routing fallback for GitHub Pages
+      (function() {
+        var pathSegments = window.location.pathname.split('/').filter(Boolean);
+        // Repository name is the first segment on user.github.io/TAGTOP-/
+        var repoName = pathSegments[0] || 'TAGTOP-';
+        var route = pathSegments.slice(1).join('/');
+        var targetUrl = window.location.origin + '/' + repoName + '/' + (route ? '#' + route : '') + window.location.search;
+        window.location.replace(targetUrl);
+      })();
+    </script>
+  </head>
+  <body>
+  </body>
+</html>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Language, MarketingSubPage, AppView } from '../../types';
 import { translations } from '../../i18n/translations';
+import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import { Globe } from 'lucide-react';
 
 interface FooterProps {
@@ -27,7 +28,7 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="space-y-4 md:col-span-1">
             <div className="w-[150px] h-[40px] flex items-center">
               <img
-                src="/assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png"
+                src={TAGTOP_LOGO_URL}
                 alt="TAGTOP"
                 className="max-h-full max-w-full object-contain"
               />

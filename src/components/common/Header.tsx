@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Language, AppView, MarketingSubPage } from '../../types';
 import { translations } from '../../i18n/translations';
+import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import { Globe, Menu, X, Shield, User, ExternalLink, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
@@ -112,7 +113,7 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <div className="w-[125px] sm:w-[165px] h-[36px] sm:h-[44px] flex items-center justify-start">
               <img
-                src="/assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png"
+                src={TAGTOP_LOGO_URL}
                 alt="TAGTOP"
                 className="w-full h-full object-contain object-left rtl:object-right"
               />

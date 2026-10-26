@@ -67,6 +67,41 @@ export default function App() {
     document.documentElement.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
   }, [currentLanguage]);
 
+  // Handle URL hash changes for deep linking and client-side routing on GitHub Pages
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '');
+      if (!hash) return;
+
+      if (hash === 'customer-dashboard' || hash === 'founder-dashboard' || hash === 'public-profile') {
+        setCurrentView(hash as AppView);
+      } else if (['configurator', 'demo', 'terms', 'privacy', 'home'].includes(hash)) {
+        setCurrentView('marketing');
+        setCurrentSubPage(hash as MarketingSubPage);
+      } else if (['how-it-works', 'cards', 'pricing', 'about', 'faq'].includes(hash)) {
+        setCurrentView('marketing');
+        setCurrentSubPage(hash as MarketingSubPage);
+        setTimeout(() => {
+          document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
+        }, 150);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Smooth scroll to anchor sections when subpage changes
+  useEffect(() => {
+    if (currentView === 'marketing' && ['how-it-works', 'cards', 'pricing', 'about', 'faq'].includes(currentSubPage)) {
+      const el = document.getElementById(currentSubPage);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+  }, [currentSubPage, currentView]);
+
   // Order Handlers
   const handleOrderCreated = (newOrder: NfcCardOrder) => {
     setOrders((prev) => [newOrder, ...prev]);

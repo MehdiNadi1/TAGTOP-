@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BusinessProfile, Language, LeadSubmission } from '../../types';
 import { translations } from '../../i18n/translations';
 import { downloadVCard } from '../../utils/pricingAndAccess';
+import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import {
   Phone,
   MessageSquare,
@@ -500,7 +501,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
               <div className="flex items-center justify-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
                 <span className="text-[10px] text-neutral-500 font-mono">PROPULSÉ PAR</span>
                 <img
-                  src="/assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png"
+                  src={TAGTOP_LOGO_URL}
                   alt="TAGTOP"
                   className="h-3.5 w-auto object-contain"
                 />

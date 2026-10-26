@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { CardColor, CardBranding } from '../../types';
+import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import { Wifi, RotateCw } from 'lucide-react';
 
 interface NfcCard3DProps {
@@ -144,7 +145,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
               ) : branding === 'branded' ? (
                 <div className="flex items-center gap-2">
                   <img
-                    src="/assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png"
+                    src={TAGTOP_LOGO_URL}
                     alt="TAGTOP"
                     className={`h-8 w-auto object-contain ${
                       isBlack ? 'brightness-0 invert' : ''
@@ -214,7 +215,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
                 <div className="flex items-center gap-1.5 opacity-80">
                   <span className="text-[10px] font-mono tracking-wider">PROPULSÉ PAR</span>
                   <img
-                    src="/assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png"
+                    src={TAGTOP_LOGO_URL}
                     alt="TAGTOP"
                     className={`h-4 w-auto object-contain ${isBlack ? 'brightness-0 invert' : ''}`}
                   />
