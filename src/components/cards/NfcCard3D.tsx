@@ -1,0 +1,248 @@
+import React, { useState, useRef } from 'react';
+import { CardColor, CardBranding } from '../../types';
+import { Wifi, RotateCw } from 'lucide-react';
+
+interface NfcCard3DProps {
+  color: CardColor;
+  branding: CardBranding;
+  businessName?: string;
+  businessTitle?: string;
+  logoPreviewUrl?: string;
+  cardUid?: string;
+  interactiveTilt?: boolean;
+  className?: string;
+  showFlipButton?: boolean;
+}
+
+export const NfcCard3D: React.FC<NfcCard3DProps> = ({
+  color = 'black',
+  branding = 'branded',
+  businessName = 'ATELIER ATLAS DESIGN',
+  businessTitle = 'Architecture & Scénographie',
+  logoPreviewUrl,
+  cardUid = '04:A2:8F:9C:3E:11:80',
+  interactiveTilt = true,
+  className = '',
+  showFlipButton = true,
+}) => {
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [rotateX, setRotateX] = useState(0);
+  const [rotateY, setRotateY] = useState(0);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const isBlack = color === 'black';
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!interactiveTilt || !cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    
+    // Smooth angle bounds
+    const maxAngle = 12;
+    const rotX = -((y - centerY) / centerY) * maxAngle;
+    const rotY = ((x - centerX) / centerX) * maxAngle;
+    
+    setRotateX(rotX);
+    setRotateY(rotY);
+  };
+
+  const handleMouseLeave = () => {
+    if (!interactiveTilt) return;
+    setRotateX(0);
+    setRotateY(0);
+  };
+
+  return (
+    <div className={`relative flex flex-col items-center ${className}`}>
+      {/* 3D Perspective Canvas */}
+      <div
+        ref={cardRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        className="perspective-1000 w-full max-w-[420px] aspect-[1.586] cursor-pointer select-none transition-transform duration-200"
+        style={{
+          transform: `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
+        }}
+        onClick={() => setIsFlipped(!isFlipped)}
+        role="button"
+        tabIndex={0}
+        aria-label={`Carte NFC TAGTOP ${isBlack ? 'Noir Mat' : 'Blanc Mat'}, cliquer pour retourner`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsFlipped(!isFlipped);
+          }
+        }}
+      >
+        <div
+          className={`relative w-full h-full duration-500 transform-style-3d transition-transform ${
+            isFlipped ? 'rotate-y-180' : ''
+          }`}
+          style={{ transform: isFlipped ? 'rotateY(180deg)' : undefined }}
+        >
+          {/* FRONT FACE */}
+          <div
+            className={`absolute inset-0 w-full h-full rounded-2xl p-6 flex flex-col justify-between backface-hidden shadow-2xl border transition-colors ${
+              isBlack
+                ? 'bg-gradient-to-br from-neutral-900 via-neutral-950 to-black text-white border-neutral-800'
+                : 'bg-gradient-to-br from-neutral-50 via-white to-neutral-100 text-neutral-900 border-neutral-300'
+            }`}
+            style={{
+              boxShadow: isBlack
+                ? '0 20px 40px -15px rgba(0,0,0,0.7), inset 0 1px 1px rgba(255,255,255,0.1)'
+                : '0 20px 40px -15px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.9)',
+            }}
+          >
+            {/* Top row: NFC symbol & Smart Chip simulation */}
+            <div className="flex items-center justify-between">
+              {/* Metallic Chip */}
+              <div
+                className={`w-12 h-9 rounded-md border flex flex-col justify-between p-1 relative overflow-hidden ${
+                  isBlack
+                    ? 'bg-gradient-to-tr from-amber-200 via-yellow-400 to-amber-100 border-amber-300/40'
+                    : 'bg-gradient-to-tr from-amber-100 via-amber-300 to-yellow-200 border-amber-400/50'
+                }`}
+                style={{
+                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)',
+                }}
+              >
+                <div className="h-[1px] w-full bg-amber-700/30" />
+                <div className="flex justify-between w-full h-full py-0.5">
+                  <div className="w-1.5 h-full rounded-xs bg-amber-600/20" />
+                  <div className="w-2.5 h-full rounded-full border border-amber-700/30" />
+                  <div className="w-1.5 h-full rounded-xs bg-amber-600/20" />
+                </div>
+                <div className="h-[1px] w-full bg-amber-700/30" />
+              </div>
+
+              {/* NFC Contactless Wave Indicator */}
+              <div className="flex items-center gap-1.5 opacity-80">
+                <Wifi
+                  className={`w-5 h-5 rotate-90 ${
+                    isBlack ? 'text-amber-400' : 'text-neutral-800'
+                  }`}
+                />
+                <span className="text-[10px] uppercase font-mono tracking-widest font-semibold">
+                  NFC Tap
+                </span>
+              </div>
+            </div>
+
+            {/* Center Area: Brand Logo or Custom Business Artwork */}
+            <div className="my-auto py-2">
+              {logoPreviewUrl ? (
+                <div className="max-h-12 flex items-center">
+                  <img
+                    src={logoPreviewUrl}
+                    alt={businessName}
+                    className="max-h-12 max-w-[200px] object-contain"
+                  />
+                </div>
+              ) : branding === 'branded' ? (
+                <div className="flex items-center gap-2">
+                  <img
+                    src="/assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png"
+                    alt="TAGTOP"
+                    className={`h-8 w-auto object-contain ${
+                      isBlack ? 'brightness-0 invert' : ''
+                    }`}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-0.5">
+                  <div className="text-xl font-bold tracking-tight uppercase font-sans">
+                    {businessName}
+                  </div>
+                  <div className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'}`}>
+                    {businessTitle}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Bottom Row: Holder Name & Security Tag */}
+            <div className="flex items-end justify-between pt-2 border-t border-current/10">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider font-mono opacity-60">
+                  Titulaire Professionnel
+                </p>
+                <p className="text-sm font-semibold tracking-wide uppercase truncate max-w-[220px]">
+                  {businessName}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[9px] font-mono opacity-50 tracking-widest">
+                  MAROC · SECURE CHIP
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* BACK FACE */}
+          <div
+            className={`absolute inset-0 w-full h-full rounded-2xl p-6 flex flex-col justify-between backface-hidden shadow-2xl border transition-colors ${
+              isBlack
+                ? 'bg-neutral-950 text-white border-neutral-800'
+                : 'bg-neutral-100 text-neutral-900 border-neutral-300'
+            }`}
+            style={{
+              transform: 'rotateY(180deg)',
+              boxShadow: isBlack
+                ? '0 20px 40px -15px rgba(0,0,0,0.7)'
+                : '0 20px 40px -15px rgba(0,0,0,0.15)',
+            }}
+          >
+            {/* Magnetic stripe simulation */}
+            <div className={`-mx-6 -mt-1 h-9 ${isBlack ? 'bg-neutral-900 border-y border-neutral-800' : 'bg-neutral-800'}`} />
+
+            <div className="my-auto space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono opacity-70">
+                <span>NFC ID: {cardUid}</span>
+                <span>ISO/IEC 14443-A</span>
+              </div>
+              <p className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'} leading-relaxed`}>
+                Approchez cette carte de tout smartphone compatible pour accéder instantanément au profil professionnel. Sans application.
+              </p>
+            </div>
+
+            {/* Back footer: TAGTOP hallmark (only if branded) */}
+            <div className="flex items-center justify-between pt-2 border-t border-current/10 text-xs">
+              {branding === 'branded' ? (
+                <div className="flex items-center gap-1.5 opacity-80">
+                  <span className="text-[10px] font-mono tracking-wider">PROPULSÉ PAR</span>
+                  <img
+                    src="/assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png"
+                    alt="TAGTOP"
+                    className={`h-4 w-auto object-contain ${isBlack ? 'brightness-0 invert' : ''}`}
+                  />
+                </div>
+              ) : (
+                <span className="text-[10px] font-mono opacity-60">CARTE SUR MESURE PRIVÉE</span>
+              )}
+              <span className="text-[10px] font-mono opacity-60">FABRIQUÉ POUR LE MAROC</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Helper / Flip Button */}
+      {showFlipButton && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+          <button
+            type="button"
+            onClick={() => setIsFlipped(!isFlipped)}
+            className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>{isFlipped ? 'Voir le recto' : 'Retourner la carte (verso)'}</span>
+          </button>
+          <span className="text-slate-400">·</span>
+          <span className="text-slate-400">Inclinez avec la souris</span>
+        </div>
+      )}
+    </div>
+  );
+};

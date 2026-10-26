@@ -1,0 +1,6 @@
+{
+  "name": "TAGTOP - Cartes de Visite NFC & Profils Professionnels au Maroc",
+  "description": "Plateforme marocaine de cartes de visite NFC haut de gamme et profils professionnels digitaux pour entrepreneurs et dirigeants d'entreprise.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
