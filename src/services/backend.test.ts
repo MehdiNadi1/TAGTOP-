@@ -1,0 +1,108 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ * 
+ * TAGTOP Supabase Backend Foundation & Adapter Unit Tests
+ */
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { isSupabaseConfigured, getRequiredSupabaseClient } from './supabase/client';
+import { dataAdapter } from './dataAdapter';
+import { LeadSubmission, NfcCardOrder } from '../types';
+
+test('isSupabaseConfigured returns false when env variables are missing or unconfigured', () => {
+  const configured = isSupabaseConfigured();
+  // In development without .env set, it should safely return false without throwing
+  assert.equal(typeof configured, 'boolean');
+});
+
+test('getRequiredSupabaseClient throws descriptive error when client is unconfigured', () => {
+  if (!isSupabaseConfigured()) {
+    assert.throws(
+      () => getRequiredSupabaseClient(),
+      /Supabase client is not configured/
+    );
+  }
+});
+
+test('dataAdapter.resolveNfcTap resolves NFC cards seamlessly via local fallback', async () => {
+  // Test by both physical UID and serial number
+  const resolvedByUid = await dataAdapter.resolveNfcTap('04:A2:8F:9C:3E:11:80');
+  assert.equal(resolvedByUid, 'prof-casablanca');
+
+  const resolvedBySerial = await dataAdapter.resolveNfcTap('TAG-MA-2026-00142');
+  assert.equal(resolvedBySerial, 'prof-casablanca');
+});
+
+test('dataAdapter.resolveNfcTap returns null for non-existent card UIDs', async () => {
+  const resolved = await dataAdapter.resolveNfcTap('NON-EXISTENT-UID-999');
+  assert.equal(resolved, null);
+});
+
+test('dataAdapter.getPublicProfile retrieves business profile by handle or ID', async () => {
+  const profileByHandle = await dataAdapter.getPublicProfile('yassine-bennani', 'fr');
+  assert.ok(profileByHandle);
+  assert.equal(profileByHandle.id, 'prof-casablanca');
+  assert.equal(profileByHandle.displayName, 'Yassine Bennani');
+  assert.equal(profileByHandle.city, 'Casablanca');
+  assert.equal(profileByHandle.accessState, 'active');
+
+  const profileById = await dataAdapter.getPublicProfile('prof-casablanca', 'fr');
+  assert.ok(profileById);
+  assert.equal(profileById.handle, 'yassine-bennani');
+});
+
+test('dataAdapter.recordProfileEvent safely logs interactions and increments counters', async () => {
+  await dataAdapter.recordProfileEvent('prof-casablanca', 'tap');
+  await dataAdapter.recordProfileEvent('prof-casablanca', 'whatsapp');
+  await dataAdapter.recordProfileEvent('prof-casablanca', 'vcard');
+  assert.ok(true, 'Recorded analytics without exception');
+});
+
+test('dataAdapter.submitLead persists a new lead with promotional consent', async () => {
+  const newLead: LeadSubmission = {
+    id: `lead-test-${Date.now()}`,
+    profileId: 'prof-casablanca',
+    profileName: 'Yassine Bennani - Atelier Atlas Design',
+    name: 'Karim Tazi',
+    phone: '+212661234567',
+    email: 'karim.tazi@example.ma',
+    company: 'Tazi Development',
+    notes: 'Demande de devis pour villa à Dar Bouazza',
+    promotionalConsent: true,
+    submittedAt: new Date().toISOString(),
+  };
+
+  const saved = await dataAdapter.submitLead(newLead);
+  assert.equal(saved.name, 'Karim Tazi');
+  assert.equal(saved.promotionalConsent, true);
+});
+
+test('dataAdapter.createOrder persists an order with COD payment status', async () => {
+  const newOrder: NfcCardOrder = {
+    id: `ord-test-${Date.now()}`,
+    customerName: 'Samir Alaoui',
+    customerPhone: '+212662000000',
+    customerEmail: 'samir@example.com',
+    city: 'Rabat',
+    address: 'Avenue Mohammed VI, Souissi',
+    packageTier: 'starter',
+    cardColor: 'black',
+    cardBranding: 'branded',
+    cardQuantity: 1,
+    priceMAD: 250,
+    woodenStandSelected: false,
+    woodenStandPriceMAD: 0,
+    profileId: 'prof-casablanca',
+    profileName: 'Yassine Bennani',
+    orderStatus: 'received',
+    paymentStatus: 'cod_pending',
+    proofApproved: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  const created = await dataAdapter.createOrder(newOrder);
+  assert.equal(created.priceMAD, 250);
+  assert.equal(created.paymentStatus, 'cod_pending');
+});

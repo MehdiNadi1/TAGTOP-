@@ -42,10 +42,10 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-center">
-          
+
           {/* LEFT COLUMN: HERO HEADLINE & ACTIONS (7 cols) */}
           <div className="lg:col-span-7 flex flex-col justify-center space-y-6">
-            
+
             {/* Reassurance Kicker - Unboxed Clean Typography */}
             <div className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-800 bg-amber-100/70 border border-amber-300/50 px-3 py-1.5 rounded-md w-fit">
               <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
@@ -67,7 +67,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  onViewChange('customer-dashboard');
+                  onNavigate('configurator');
                 }}
                 className="inline-flex items-center justify-center gap-2 bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold text-base px-6 py-3.5 rounded-xl shadow-sm transition-all transform active:scale-[0.98]"
               >
@@ -103,7 +103,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
           {/* RIGHT COLUMN: INTERACTIVE CARD-TO-PHONE SIMULATION (5 cols) */}
           <div className="lg:col-span-5 relative flex flex-col items-center">
-            
+
             {/* Simulation Header with Play/Pause button */}
             <div className="w-full flex items-center justify-between pb-3 text-xs text-slate-500">
               <span className="font-semibold text-slate-700 flex items-center gap-1.5">
@@ -123,7 +123,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
             {/* Stage Container */}
             <div className="relative w-full max-w-[380px] bg-neutral-900 rounded-3xl p-6 shadow-2xl border border-neutral-800 overflow-hidden flex flex-col items-center min-h-[460px] justify-between">
-              
+
               {/* Approaching Card */}
               <div
                 onClick={handleManualTap}
@@ -133,8 +133,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                     tapStep === 1
                       ? 'translateY(28px) scale(0.96)'
                       : tapStep === 2
-                      ? 'translateY(-10px) scale(0.92)'
-                      : 'translateY(0px) scale(1)',
+                        ? 'translateY(-10px) scale(0.92)'
+                        : 'translateY(0px) scale(1)',
                 }}
               >
                 <NfcCard3D
@@ -159,9 +159,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
               {/* Smartphone Display Mockup with Live TAGTOP Profile */}
               <div
-                className={`w-full max-w-[270px] bg-white rounded-2xl p-4 shadow-xl border-4 border-neutral-700 transition-all duration-500 overflow-hidden ${
-                  tapStep === 2 ? 'opacity-100 scale-100 translate-y-0' : 'opacity-80 scale-95 translate-y-3'
-                }`}
+                className={`w-full max-w-[270px] bg-white rounded-2xl p-4 shadow-xl border-4 border-neutral-700 transition-all duration-500 overflow-hidden ${tapStep === 2 ? 'opacity-100 scale-100 translate-y-0' : 'opacity-80 scale-95 translate-y-3'
+                  }`}
               >
                 {/* Phone Speaker Notch */}
                 <div className="w-16 h-1 bg-neutral-300 rounded-full mx-auto mb-3" />
