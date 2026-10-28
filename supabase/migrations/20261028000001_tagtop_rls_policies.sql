@@ -3,7 +3,7 @@
 -- Hardened for Phase 2A.1 Final:
 -- 1. Raw business_profiles table is restricted to owners and admin (public uses public_business_profiles view or get_public_profile RPC).
 -- 2. Server-side price calculation and validation on orders INSERT (never trust client prices).
--- 3. Anonymous orders audited against unauthorized profile linking.
+-- 3. Anonymous guests CANNOT link orders to existing business profiles (eliminates guest takeover vector).
 -- 4. Bank transfers require authenticated caller and strict profile ownership.
 -- 5. Immutability triggers on users, profiles, orders, and transfers.
 
@@ -321,6 +321,7 @@ BEGIN
       -- 7. Identity & Profile Ownership Audit
       IF auth.uid() IS NOT NULL THEN
         NEW.customer_id := auth.uid();
+        -- If an authenticated user links a profile, verify they own it
         IF NEW.profile_id IS NOT NULL THEN
           IF NOT EXISTS (
             SELECT 1 FROM public.business_profiles
@@ -330,16 +331,12 @@ BEGIN
           END IF;
         END IF;
       ELSE
-        -- Guest checkout: customer_id is null; verify profile_id if supplied
+        -- Guest checkout: customer_id is NULL.
+        -- SECURITY FIX: Anonymous guests CANNOT associate orders with existing business profiles.
+        -- Profile linking requires authenticated ownership.
         NEW.customer_id := NULL;
         IF NEW.profile_id IS NOT NULL THEN
-          IF NOT EXISTS (
-            SELECT 1 FROM public.business_profiles
-            WHERE id = NEW.profile_id
-              AND (access_state = 'private_preview' OR email = NEW.customer_email)
-          ) THEN
-            RAISE EXCEPTION 'Security violation: Cannot link guest order to an existing verified customer profile';
-          END IF;
+          RAISE EXCEPTION 'Security violation: Anonymous orders cannot be linked to existing business profiles. Please authenticate first.';
         END IF;
       END IF;
     END IF;
