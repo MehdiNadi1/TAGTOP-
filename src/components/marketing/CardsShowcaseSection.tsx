@@ -20,7 +20,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
   return (
     <section id="cards" className="py-20 bg-neutral-900 text-white border-b border-neutral-800">
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
-        
+
         {/* Header */}
         <div className="max-w-2xl mb-14">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">
@@ -36,7 +36,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
 
         {/* 2-Column Showcase */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
+
           {/* Left: 3D Interactive Card Preview */}
           <div className="lg:col-span-6 flex flex-col items-center justify-center p-8 bg-neutral-950/60 rounded-3xl border border-neutral-800/80">
             <NfcCard3D
@@ -49,18 +49,17 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
               className="w-full"
               currentLanguage={currentLanguage}
             />
-            
+
             {/* Color & Branding Selectors */}
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
               <div className="flex items-center gap-1.5 p-1 bg-neutral-800 rounded-xl border border-neutral-700">
                 <button
                   type="button"
                   onClick={() => setSelectedColor('black')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    selectedColor === 'black'
-                      ? 'bg-neutral-900 text-white shadow-xs'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${selectedColor === 'black'
+                    ? 'bg-neutral-900 text-white shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                    }`}
                 >
                   <span className="w-2.5 h-2.5 rounded-full bg-black border border-neutral-600 inline-block" />
                   <span>{t.cards.matteBlack}</span>
@@ -68,11 +67,10 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedColor('white')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    selectedColor === 'white'
-                      ? 'bg-neutral-100 text-neutral-900 shadow-xs'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${selectedColor === 'white'
+                    ? 'bg-neutral-100 text-neutral-900 shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                    }`}
                 >
                   <span className="w-2.5 h-2.5 rounded-full bg-white border border-neutral-300 inline-block" />
                   <span>{t.cards.matteWhite}</span>
@@ -83,22 +81,20 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => setSelectedBranding('branded')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    selectedBranding === 'branded'
-                      ? 'bg-amber-400 text-black shadow-xs'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${selectedBranding === 'branded'
+                    ? 'bg-amber-400 text-black shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                    }`}
                 >
                   {t.cards.brandedOption}
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedBranding('unbranded')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                    selectedBranding === 'unbranded'
-                      ? 'bg-amber-400 text-black shadow-xs'
-                      : 'text-neutral-400 hover:text-white'
-                  }`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${selectedBranding === 'unbranded'
+                    ? 'bg-amber-400 text-black shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                    }`}
                 >
                   {t.cards.unbrandedOption}
                 </button>
@@ -108,13 +104,13 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
 
           {/* Right: Technical Features & Optional Accessory */}
           <div className="lg:col-span-6 space-y-6">
-            
+
             <div className="p-6 rounded-2xl bg-neutral-950/40 border border-neutral-800 space-y-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
                 <span>{t.cards.specsTitle}</span>
               </h3>
-              
+
               <ul className="space-y-3 text-sm text-neutral-300">
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />

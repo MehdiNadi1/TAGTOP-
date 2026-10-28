@@ -46,7 +46,7 @@ export const FeaturesSection: React.FC<FeaturesSectionProps> = ({ currentLanguag
   return (
     <section id="features" className="py-20 bg-white border-b border-neutral-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
-        
+
         {/* Section Header */}
         <div className="max-w-2xl mb-14">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">
