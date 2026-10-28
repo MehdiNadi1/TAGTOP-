@@ -23,7 +23,7 @@
  *
  * EXIT CODE:
  *   0 — all required tests passed (or database not configured: explicitly prints 0 tests executed)
- *   1 — any test failed, setup failed, required section skipped, or unexpected exception
+ *   1 — any test failed, setup failed, cleanup failed, required section skipped, or unexpected exception
  */
 
 // ─── Load test-local credentials from scripts/.env.test ────────────────────
@@ -108,30 +108,52 @@ function section(title: string): void {
 }
 
 // ─── Cleanup registry ───────────────────────────────────────────────────────
-// Tracks all test-generated rows for teardown, even on failure.
+// Tracks all test-generated rows and auth users for teardown, even on failure.
 interface CleanupRecord {
   table: string;
   id: string;
 }
 const cleanupQueue: CleanupRecord[] = [];
+const testUserIdsToCleanup: string[] = [];
+let cleanupFailed = false;
+const cleanupErrors: string[] = [];
 
 async function cleanupAll(adminClient: SupabaseClient): Promise<void> {
-  // Reverse order: leads → bank_transfers → orders → profiles → users
+  // Reverse order: leads → bank_transfers → orders → profiles
   for (const rec of [...cleanupQueue].reverse()) {
     try {
-      await adminClient.from(rec.table).delete().eq('id', rec.id);
-    } catch {
-      // Best-effort; log but do not abort
-      console.warn(`    ⚠ Cleanup warning: could not delete ${rec.table}/${rec.id}`);
+      const { error } = await adminClient.from(rec.table).delete().eq('id', rec.id);
+      if (error) {
+        const errMsg = `Failed to delete from ${rec.table} (id=${rec.id}): ${error.message}`;
+        console.error(`    ✖ Cleanup error: ${errMsg}`);
+        cleanupErrors.push(errMsg);
+        cleanupFailed = true;
+      }
+    } catch (err: unknown) {
+      const errDetail = err instanceof Error ? err.message : String(err);
+      const errMsg = `Exception during delete from ${rec.table} (id=${rec.id}): ${errDetail}`;
+      console.error(`    ✖ Cleanup exception: ${errMsg}`);
+      cleanupErrors.push(errMsg);
+      cleanupFailed = true;
     }
   }
 }
 
 async function deleteTestAuthUser(adminClient: SupabaseClient, userId: string): Promise<void> {
   try {
-    await adminClient.auth.admin.deleteUser(userId);
-  } catch {
-    console.warn(`    ⚠ Cleanup warning: could not delete auth user ${userId}`);
+    const { error } = await adminClient.auth.admin.deleteUser(userId);
+    if (error) {
+      const errMsg = `Failed to delete auth user ${userId}: ${error.message}`;
+      console.error(`    ✖ Cleanup error: ${errMsg}`);
+      cleanupErrors.push(errMsg);
+      cleanupFailed = true;
+    }
+  } catch (err: unknown) {
+    const errDetail = err instanceof Error ? err.message : String(err);
+    const errMsg = `Exception during delete auth user ${userId}: ${errDetail}`;
+    console.error(`    ✖ Cleanup exception: ${errMsg}`);
+    cleanupErrors.push(errMsg);
+    cleanupFailed = true;
   }
 }
 
@@ -152,8 +174,10 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
     console.log('  frontend bundle and must never hold privileged credentials.');
     console.log('\n' + '─'.repeat(76));
     console.log('  Summary: 0 live tests executed against PostgreSQL.');
+    console.log('  Status: SKIPPED (No live assertions verified)');
+    console.log('  WARNING: Missing credentials — this run DID NOT execute live tests.');
     console.log('─'.repeat(76) + '\n');
-    // Explicit clean exit — no live tests means no assertion failures
+    // Explicit clean exit — 0 live tests means no assertions were evaluated
     process.exit(0);
   }
 
@@ -197,10 +221,10 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       email: emailA, password, email_confirm: true,
     });
     if (!authA?.user || errA) {
-      console.error('  FATAL: Could not create Customer A auth user:', errA?.message);
-      process.exit(1);
+      throw new Error(`Could not create Customer A auth user: ${errA?.message || 'No user data returned'}`);
     }
     userIdA = authA.user.id;
+    testUserIdsToCleanup.push(userIdA);
     console.log(`  ✔ Created Customer A: ${emailA} (${userIdA})`);
 
     // Create Customer B
@@ -208,11 +232,10 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       email: emailB, password, email_confirm: true,
     });
     if (!authB?.user || errB) {
-      console.error('  FATAL: Could not create Customer B auth user:', errB?.message);
-      await deleteTestAuthUser(adminClient, userIdA);
-      process.exit(1);
+      throw new Error(`Could not create Customer B auth user: ${errB?.message || 'No user data returned'}`);
     }
     userIdB = authB.user.id;
+    testUserIdsToCleanup.push(userIdB);
     console.log(`  ✔ Created Customer B: ${emailB} (${userIdB})`);
 
     // Create Founder Admin auth user
@@ -220,12 +243,10 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       email: emailAdmin, password, email_confirm: true,
     });
     if (!authAdmin?.user || errAdmin) {
-      console.error('  FATAL: Could not create Founder Admin auth user:', errAdmin?.message);
-      await deleteTestAuthUser(adminClient, userIdA);
-      await deleteTestAuthUser(adminClient, userIdB);
-      process.exit(1);
+      throw new Error(`Could not create Founder Admin auth user: ${errAdmin?.message || 'No user data returned'}`);
     }
     userIdAdmin = authAdmin.user.id;
+    testUserIdsToCleanup.push(userIdAdmin);
     console.log(`  ✔ Created Founder Admin: ${emailAdmin} (${userIdAdmin})`);
 
     // Elevate Founder Admin role via admin client (bypasses immutability trigger)
@@ -234,11 +255,7 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       .update({ role: 'founder_admin' })
       .eq('id', userIdAdmin);
     if (elevateErr) {
-      console.error('  FATAL: Could not elevate admin role:', elevateErr.message);
-      await deleteTestAuthUser(adminClient, userIdA);
-      await deleteTestAuthUser(adminClient, userIdB);
-      await deleteTestAuthUser(adminClient, userIdAdmin);
-      process.exit(1);
+      throw new Error(`Could not elevate admin role: ${elevateErr.message}`);
     }
     console.log('  ✔ Elevated admin role to founder_admin');
 
@@ -246,24 +263,21 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
     const clientA = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { error: signInAErr } = await clientA.auth.signInWithPassword({ email: emailA, password });
     if (signInAErr) {
-      console.error('  FATAL: Customer A sign-in failed:', signInAErr.message);
-      process.exit(1);
+      throw new Error(`Customer A sign-in failed: ${signInAErr.message}`);
     }
 
     // Authenticate Customer B
     const clientB = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { error: signInBErr } = await clientB.auth.signInWithPassword({ email: emailB, password });
     if (signInBErr) {
-      console.error('  FATAL: Customer B sign-in failed:', signInBErr.message);
-      process.exit(1);
+      throw new Error(`Customer B sign-in failed: ${signInBErr.message}`);
     }
 
     // Authenticate Founder Admin
     const clientAdmin = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { error: signInAdminErr } = await clientAdmin.auth.signInWithPassword({ email: emailAdmin, password });
     if (signInAdminErr) {
-      console.error('  FATAL: Founder Admin sign-in failed:', signInAdminErr.message);
-      process.exit(1);
+      throw new Error(`Founder Admin sign-in failed: ${signInAdminErr.message}`);
     }
 
     // Customer A creates Profile A (trigger enforces owner_id = auth.uid(), access_state = private_preview)
@@ -281,18 +295,20 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       .single();
 
     if (profAErr || !profAData) {
-      console.error('  FATAL: Customer A could not create Profile A:', profAErr?.message);
-      process.exit(1);
+      throw new Error(`Customer A could not create Profile A: ${profAErr?.message || 'No data returned'}`);
     }
     profileAId = profAData.id;
     cleanupQueue.push({ table: 'business_profiles', id: profileAId });
     console.log(`  ✔ Customer A created Profile A: ${profileAId} (access_state=${profAData.access_state})`);
 
     // Activate Profile A via admin so it appears in the public view (for lead tests)
-    await adminClient
+    const { error: activateErr } = await adminClient
       .from('business_profiles')
       .update({ access_state: 'active' })
       .eq('id', profileAId);
+    if (activateErr) {
+      throw new Error(`Admin could not activate Profile A: ${activateErr.message}`);
+    }
     console.log('  ✔ Admin set Profile A → active');
 
     // Customer B creates Profile B
@@ -310,8 +326,7 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       .single();
 
     if (profBErr || !profBData) {
-      console.error('  FATAL: Customer B could not create Profile B:', profBErr?.message);
-      process.exit(1);
+      throw new Error(`Customer B could not create Profile B: ${profBErr?.message || 'No data returned'}`);
     }
     profileBId = profBData.id;
     cleanupQueue.push({ table: 'business_profiles', id: profileBId });
@@ -862,7 +877,7 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
   } catch (unexpectedErr) {
     // Any unhandled exception = immediate suite failure
     console.error('\n  UNEXPECTED EXCEPTION during test execution:');
-    console.error(unexpectedErr);
+    console.error(unexpectedErr instanceof Error ? unexpectedErr.message : unexpectedErr);
     suiteFailed = true;
   } finally {
     // ══════════════════════════════════════════════════════════════════════════
@@ -870,10 +885,15 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
     // ══════════════════════════════════════════════════════════════════════════
     section('CLEANUP — Removing test fixtures');
     await cleanupAll(adminClient);
-    if (userIdA) await deleteTestAuthUser(adminClient, userIdA);
-    if (userIdB) await deleteTestAuthUser(adminClient, userIdB);
-    if (userIdAdmin) await deleteTestAuthUser(adminClient, userIdAdmin);
-    console.log('  ✔ Test fixtures and auth users removed.');
+    for (const uid of testUserIdsToCleanup) {
+      await deleteTestAuthUser(adminClient, uid);
+    }
+    if (cleanupFailed || cleanupErrors.length > 0) {
+      console.error(`  ✖ Cleanup completed with ${cleanupErrors.length} error(s).`);
+      suiteFailed = true;
+    } else {
+      console.log('  ✔ All test fixtures and auth users removed successfully.');
+    }
   }
 
   // ── Summary ────────────────────────────────────────────────────────────────
@@ -882,10 +902,13 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
 
   console.log('\n' + '='.repeat(76));
   console.log(`  RESULTS: ${passed} PASSED  |  ${failed} FAILED  |  ${results.length} TOTAL`);
+  if (cleanupFailed || cleanupErrors.length > 0) {
+    console.log(`  CLEANUP: FAILED (${cleanupErrors.length} cleanup error(s))`);
+  }
   console.log('='.repeat(76));
 
-  if (suiteFailed || failed > 0) {
-    console.error('\n  ✖ Integration test suite FAILED. See failures above.\n');
+  if (suiteFailed || failed > 0 || cleanupFailed) {
+    console.error('\n  ✖ Integration test suite FAILED. See details above.\n');
     process.exit(1);
   } else {
     console.log('\n  ✔ All live database integration tests passed.\n');
