@@ -24,7 +24,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
         {/* Header */}
         <div className="max-w-2xl mb-14">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-400 mb-2">
-            Matériaux & Confection
+            {t.cards.badge}
           </p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight text-balance">
             {t.cards.title}
@@ -43,10 +43,11 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
               color={selectedColor}
               branding={selectedBranding}
               businessName="ATELIER ATLAS DESIGN"
-              businessTitle="Architecture & Scénographie"
+              businessTitle={t.nfcCard.sampleBusinessTitle}
               showFlipButton={true}
               interactiveTilt={true}
               className="w-full"
+              currentLanguage={currentLanguage}
             />
             
             {/* Color & Branding Selectors */}
@@ -88,7 +89,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
-                  Avec logo TAGTOP (249 MAD)
+                  {t.cards.brandedOption}
                 </button>
                 <button
                   type="button"
@@ -99,7 +100,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
-                  Sans logo TAGTOP (349 MAD)
+                  {t.cards.unbrandedOption}
                 </button>
               </div>
             </div>
@@ -110,33 +111,33 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
             
             <div className="p-6 rounded-2xl bg-neutral-950/40 border border-neutral-800 space-y-4">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-amber-400" />
-                <span>Spécifications de la Carte PVC NFC</span>
+                <Sparkles className="w-5 h-5 text-amber-400 shrink-0" />
+                <span>{t.cards.specsTitle}</span>
               </h3>
               
               <ul className="space-y-3 text-sm text-neutral-300">
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span><strong>Format carte bancaire :</strong> Dimensions standard 85.60 × 53.98 mm, épaisseur premium 0.84 mm.</span>
+                  <span>{t.cards.specFormat}</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span><strong>Finition mate soignée :</strong> Toucher velouté haute densité résistant aux micro-rayures et traces.</span>
+                  <span>{t.cards.specFinish}</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span><strong>Puce NTAG haute sensibilité :</strong> Compatible 100% avec les téléphones équipés de NFC sans batterie requise.</span>
+                  <span>{t.cards.specChip}</span>
                 </li>
                 <li className="flex items-start gap-2.5">
                   <Check className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <span><strong>Prête à l’emploi :</strong> Votre carte est encodée directement par TAGTOP avec votre profil digital avant envoi.</span>
+                  <span>{t.cards.specReady}</span>
                 </li>
               </ul>
             </div>
 
-            {/* Wooden Stand Note (Strictly Optional & Currently Unavailable at Launch) */}
+            {/* Wooden Stand Note */}
             <div className="p-6 rounded-2xl bg-neutral-950/40 border border-neutral-800 space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <h4 className="text-base font-bold text-white">
                   {t.cards.woodenStandTitle}
                 </h4>
@@ -149,7 +150,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
                 {t.cards.woodenStandDesc}
               </p>
               <p className="text-[11px] text-neutral-500 italic pt-1">
-                Conformément aux directives de lancement, cet accessoire est configurable mais exclu des montants de commande actuels.
+                {t.cards.woodenStandDisclaimer}
               </p>
             </div>
 
@@ -160,7 +161,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
                 onClick={() => onNavigate('configurator')}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold px-8 py-3.5 rounded-xl shadow-md transition-all active:scale-[0.98]"
               >
-                <span>Personnaliser ma carte dans le configurateur</span>
+                <span>{t.cards.customizeCta}</span>
               </button>
             </div>
 

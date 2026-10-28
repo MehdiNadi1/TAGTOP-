@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Language } from '../../types';
+import { translations } from '../../i18n/translations';
 import { ChevronDown } from 'lucide-react';
 
 interface FaqSectionProps {
@@ -8,31 +9,32 @@ interface FaqSectionProps {
 
 export const FaqSection: React.FC<FaqSectionProps> = ({ currentLanguage }) => {
   const [openIdx, setOpenIdx] = useState<number | null>(0);
+  const t = translations[currentLanguage];
 
   const faqs = [
     {
-      q: 'Est-ce que tous les smartphones sont compatibles avec la carte TAGTOP ?',
-      a: 'Tous les iPhones récents (iPhone XR, XS, 11, 12, 13, 14, 15, 16 et suivants) lisent les cartes NFC nativement sans aucune configuration. La quasi-totalité des smartphones Android modernes sont également équipés de NFC. Aucun téléchargement d’application n’est requis pour votre interlocuteur.',
+      q: t.faq.q1,
+      a: t.faq.a1,
     },
     {
-      q: 'Qu’est-ce que l’aperçu privé gratuit ?',
-      a: 'Avant de commander votre carte physique, vous pouvez créer un compte et configurer votre profil complet (bio, services, catalogue, liens, formulaire). Cet aperçu reste strictement confidentiel et accessible uniquement par vous. Il ne sera publié et lié à une carte NFC qu’après validation de votre commande.',
+      q: t.faq.q2,
+      a: t.faq.a2,
     },
     {
-      q: 'Comment fonctionne le paiement à la livraison (COD) ?',
-      a: 'Pour votre commande de carte physique Starter, vous réglez le montant exact (249 MAD avec logo TAGTOP ou 349 MAD sans logo TAGTOP) directement en espèces au livreur lors de la remise de votre colis en main propre.',
+      q: t.faq.q3,
+      a: t.faq.a3,
     },
     {
-      q: 'Comment s’effectuent les renouvellements après les 6 premiers mois inclus ?',
-      a: 'Les renouvellements (99 MAD pour 6 mois, puis 199 MAD par an) s’effectuent par virement bancaire manuel vers notre compte bancaire marocain (CIH Bank). Vous transmettez votre avis de virement via WhatsApp à notre fondateur qui valide manuellement votre période.',
+      q: t.faq.q4,
+      a: t.faq.a4,
     },
     {
-      q: 'Que se passe-t-il si j’oublie de renouveler à temps (Période de grâce) ?',
-      a: 'TAGTOP applique une période de grâce de 14 jours. Durant ces 14 jours, votre carte et votre profil public restent parfaitement actifs et fonctionnels, avec une simple alerte dans votre espace client. Si aucun virement n’est confirmé après 14 jours, le profil public affiche un message discret d’indisponibilité, tout en conservant intacts tous vos contenus privés.',
+      q: t.faq.q5,
+      a: t.faq.a5,
     },
     {
-      q: 'Puis-je modifier mes informations après réception de ma carte ?',
-      a: 'Oui, à tout moment et de manière illimitée depuis votre Espace Client TAGTOP. Le lien encodé dans votre carte NFC renvoie directement vers votre profil dynamique en ligne, sans jamais avoir besoin de réimprimer une carte.',
+      q: t.faq.q6,
+      a: t.faq.a6,
     },
   ];
 
@@ -43,13 +45,13 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ currentLanguage }) => {
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto mb-14">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">
-            Questions Fréquentes
+            {t.faq.tag}
           </p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-black tracking-tight">
-            Tout ce que vous devez savoir sur TAGTOP
+            {t.faq.title}
           </h2>
           <p className="mt-3 text-base text-slate-600">
-            Des réponses claires pour aborder votre transition vers la carte de visite sans contact.
+            {t.faq.subtitle}
           </p>
         </div>
 

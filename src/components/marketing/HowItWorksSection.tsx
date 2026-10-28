@@ -16,28 +16,28 @@ export const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ currentLan
       title: t.howItWorks.step1Title,
       desc: t.howItWorks.step1Desc,
       icon: Eye,
-      highlight: '100% privé & sans engagement',
+      highlight: t.howItWorks.step1Highlight,
     },
     {
       num: '02',
       title: t.howItWorks.step2Title,
       desc: t.howItWorks.step2Desc,
       icon: CreditCard,
-      highlight: 'Noir ou blanc mat haut de gamme',
+      highlight: t.howItWorks.step2Highlight,
     },
     {
       num: '03',
       title: t.howItWorks.step3Title,
       desc: t.howItWorks.step3Desc,
       icon: CheckSquare,
-      highlight: 'Validation BAT sur WhatsApp',
+      highlight: t.howItWorks.step3Highlight,
     },
     {
       num: '04',
       title: t.howItWorks.step4Title,
       desc: t.howItWorks.step4Desc,
       icon: Truck,
-      highlight: 'Paiement à la livraison au Maroc',
+      highlight: t.howItWorks.step4Highlight,
     },
   ];
 
@@ -48,7 +48,7 @@ export const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ currentLan
         {/* Section Header */}
         <div className="max-w-2xl mb-14">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">
-            Processus Simple & Sécurisé
+            {t.howItWorks.badge}
           </p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-black tracking-tight text-balance">
             {t.howItWorks.title}
@@ -72,7 +72,7 @@ export const HowItWorksSection: React.FC<HowItWorksSectionProps> = ({ currentLan
                     <span className="text-2xl font-black font-mono text-neutral-300">
                       {step.num}
                     </span>
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-neutral-900 flex items-center justify-center border border-amber-200">
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-neutral-900 flex items-center justify-center border border-amber-200 shrink-0">
                       <Icon className="w-5 h-5 text-neutral-900" />
                     </div>
                   </div>

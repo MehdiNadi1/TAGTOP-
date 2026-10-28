@@ -2,7 +2,6 @@ import React from 'react';
 import { Language, MarketingSubPage, AppView } from '../../types';
 import { translations } from '../../i18n/translations';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
-import { Globe } from 'lucide-react';
 
 interface FooterProps {
   currentLanguage: Language;
@@ -13,7 +12,6 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({
   currentLanguage,
-  onLanguageChange,
   onNavigateSubPage,
   onViewChange,
 }) => {
@@ -30,21 +28,21 @@ export const Footer: React.FC<FooterProps> = ({
               <img
                 src={TAGTOP_LOGO_URL}
                 alt="TAGTOP"
-                className="max-h-full max-w-full object-contain"
+                className="max-h-full max-w-full object-contain object-left rtl:object-right"
               />
             </div>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Cartes de visite NFC d'exception et profils professionnels digitaux pour les entrepreneurs et entreprises au Maroc.
+              {t.footer.mission}
             </p>
             <div className="text-xs text-slate-400">
-              Casablanca · Rabat · Marrakech · Tanger · Fès · Agadir
+              {t.footer.cities}
             </div>
           </div>
 
           {/* Col 2: Navigation */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-black uppercase tracking-wider">
-              Navigation
+              {t.footer.navTitle}
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
@@ -105,7 +103,7 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Col 3: Accès & Solutions */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-black uppercase tracking-wider">
-              Espaces & Solutions
+              {t.footer.spacesTitle}
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
@@ -135,7 +133,7 @@ export const Footer: React.FC<FooterProps> = ({
                   }}
                   className="hover:text-black transition-colors text-left rtl:text-right"
                 >
-                  Configurateur de Carte
+                  {t.footer.cardConfigurator}
                 </button>
               </li>
               <li>
@@ -144,7 +142,7 @@ export const Footer: React.FC<FooterProps> = ({
                   onClick={() => onViewChange('public-profile')}
                   className="hover:text-black transition-colors text-left rtl:text-right"
                 >
-                  Démonstration Profil Public Live
+                  {t.footer.liveDemo}
                 </button>
               </li>
             </ul>
@@ -153,12 +151,12 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Col 4: Paiement & Sécurité */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-black uppercase tracking-wider">
-              Paiement & Confiance
+              {t.footer.paymentTitle}
             </h4>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Cartes physiques livrées en paiement à la livraison (Cash on Delivery). Renouvellements d'accès validés par virement bancaire sécurisé.
+              {t.footer.paymentDesc}
             </p>
-            <div className="pt-2 flex items-center gap-2">
+            <div className="pt-2 flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-mono bg-neutral-100 text-slate-700 px-2 py-1 rounded">
                 Cash On Delivery
               </span>
@@ -176,7 +174,7 @@ export const Footer: React.FC<FooterProps> = ({
         {/* Bottom bar */}
         <div className="pt-8 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
-            © {new Date().getFullYear()} TAGTOP SARL. Tous droits réservés. Fabriqué pour le Maroc.
+            © {new Date().getFullYear()} TAGTOP SARL. {t.footer.copyright}
           </div>
 
           <div className="flex items-center gap-6">
@@ -187,7 +185,7 @@ export const Footer: React.FC<FooterProps> = ({
               }}
               className="hover:text-black transition-colors"
             >
-              Politique de Confidentialité
+              {t.footer.privacy}
             </button>
             <button
               onClick={() => {
@@ -196,7 +194,7 @@ export const Footer: React.FC<FooterProps> = ({
               }}
               className="hover:text-black transition-colors"
             >
-              Conditions d'Utilisation
+              {t.footer.terms}
             </button>
           </div>
         </div>

@@ -50,7 +50,7 @@ export const FeaturesSection: React.FC<FeaturesSectionProps> = ({ currentLanguag
         {/* Section Header */}
         <div className="max-w-2xl mb-14">
           <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">
-            Technologie & Finitions
+            {t.features.badge}
           </p>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-black tracking-tight text-balance">
             {t.features.title}
@@ -69,7 +69,7 @@ export const FeaturesSection: React.FC<FeaturesSectionProps> = ({ currentLanguag
                 key={idx}
                 className="p-6 rounded-2xl border border-neutral-200/90 bg-neutral-50/40 hover:bg-white hover:border-amber-400/80 transition-all shadow-xs"
               >
-                <div className="w-10 h-10 rounded-xl bg-[#FFD700]/25 text-black flex items-center justify-center mb-4 border border-[#FFD700]/40">
+                <div className="w-10 h-10 rounded-xl bg-[#FFD700]/25 text-black flex items-center justify-center mb-4 border border-[#FFD700]/40 shrink-0">
                   <Icon className="w-5 h-5 text-black" />
                 </div>
                 <h3 className="text-lg font-bold text-black mb-2">

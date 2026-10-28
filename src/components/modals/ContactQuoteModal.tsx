@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Language, PackageTier } from '../../types';
-import { X, CheckCircle2, Mail, Phone, Building } from 'lucide-react';
+import { translations } from '../../i18n/translations';
+import { X, CheckCircle2 } from 'lucide-react';
 
 interface ContactQuoteModalProps {
   isOpen: boolean;
@@ -23,6 +24,8 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
   const [notes, setNotes] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
+  const t = translations[currentLanguage];
+
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -39,6 +42,7 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
           type="button"
           onClick={onClose}
           className="absolute top-5 right-5 rtl:right-auto rtl:left-5 text-slate-400 hover:text-black p-1 rounded-lg"
+          aria-label={t.common.close}
         >
           <X className="w-5 h-5" />
         </button>
@@ -49,36 +53,36 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
               <CheckCircle2 className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-black">
-              Demande de devis transmise
+              {t.quoteModal.submittedTitle}
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
-              Merci {name}. Le fondateur TAGTOP étudiera votre demande pour le pack {tier?.toUpperCase()} et vous contactera au {phone} avec une proposition chiffrée sur mesure.
+              {t.quoteModal.submittedDesc} ({phone})
             </p>
             <button
               type="button"
               onClick={onClose}
               className="mt-4 bg-[#FFD700] text-black font-bold text-xs px-6 py-2.5 rounded-xl shadow-xs"
             >
-              Fermer
+              {t.quoteModal.close}
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             <div>
               <span className="text-[10px] font-mono uppercase bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold">
-                {tier === 'enterprise' ? 'Formule Entreprise' : 'Formule Pro'} · Sur Devis
+                {tier === 'enterprise' ? t.quoteModal.tierBadgeEnterprise : t.quoteModal.tierBadgePro}
               </span>
               <h3 className="text-lg font-bold text-black mt-2">
-                Demander un devis sur mesure
+                {t.quoteModal.title}
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Tarification personnalisée pour équipes et volumes au Maroc.
+                {t.quoteModal.subtitle}
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Votre Nom *</label>
+                <label className="block font-semibold text-slate-700 mb-1">{t.quoteModal.nameLabel}</label>
                 <input
                   type="text"
                   required
@@ -89,7 +93,7 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Téléphone (+212) *</label>
+                <label className="block font-semibold text-slate-700 mb-1">{t.quoteModal.phoneLabel}</label>
                 <input
                   type="tel"
                   required
@@ -103,7 +107,7 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Email professionnel *</label>
+                <label className="block font-semibold text-slate-700 mb-1">{t.quoteModal.emailLabel}</label>
                 <input
                   type="email"
                   required
@@ -114,7 +118,7 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Entreprise / Organisme</label>
+                <label className="block font-semibold text-slate-700 mb-1">{t.quoteModal.companyLabel}</label>
                 <input
                   type="text"
                   value={company}
@@ -126,7 +130,7 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Nombre de cartes estimé
+                {t.quoteModal.quantityLabel}
               </label>
               <input
                 type="number"
@@ -139,13 +143,13 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
 
             <div>
               <label className="block font-semibold text-slate-700 mb-1">
-                Besoins spécifiques / Personnalisation
+                {t.quoteModal.notesLabel}
               </label>
               <textarea
                 rows={3}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex : Charte graphique entreprise, profils séparés..."
+                placeholder={t.quoteModal.notesPlaceholder}
                 className="w-full border border-slate-300 rounded-xl p-2.5 text-xs text-black"
               />
             </div>
@@ -154,7 +158,7 @@ export const ContactQuoteModal: React.FC<ContactQuoteModalProps> = ({
               type="submit"
               className="w-full bg-[#FFD700] hover:bg-[#FACC15] text-black font-extrabold text-sm py-3.5 rounded-xl shadow-xs transition-all"
             >
-              Envoyer ma demande de devis
+              {t.quoteModal.submitBtn}
             </button>
           </form>
         )}

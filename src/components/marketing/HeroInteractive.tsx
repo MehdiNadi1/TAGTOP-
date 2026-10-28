@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Language, MarketingSubPage, AppView } from '../../types';
 import { translations } from '../../i18n/translations';
 import { NfcCard3D } from '../cards/NfcCard3D';
-import { Play, Pause, Smartphone, Wifi, CheckCircle2, ArrowRight, Sparkles, UserCheck, ShieldCheck } from 'lucide-react';
+import { Play, Pause, Wifi, CheckCircle2, ArrowRight, Sparkles } from 'lucide-react';
 
 interface HeroInteractiveProps {
   currentLanguage: Language;
@@ -48,7 +48,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
             
             {/* Reassurance Kicker - Unboxed Clean Typography */}
             <div className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-800 bg-amber-100/70 border border-amber-300/50 px-3 py-1.5 rounded-md w-fit">
-              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
               <span>{t.hero.reassurance}</span>
             </div>
 
@@ -72,7 +72,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                 className="inline-flex items-center justify-center gap-2 bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold text-base px-6 py-3.5 rounded-xl shadow-sm transition-all transform active:scale-[0.98]"
               >
                 <span>{t.hero.primaryCta}</span>
-                <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+                <ArrowRight className="w-4 h-4 rtl:rotate-180 shrink-0" />
               </button>
 
               <button
@@ -88,15 +88,15 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 border-t border-slate-100 text-xs text-slate-600">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Paiement à la livraison (COD)</span>
+                <span>{t.hero.codBadge}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Cartes livrées pré-encodées</span>
+                <span>{t.hero.preEncodedBadge}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Compatible iPhone & Android</span>
+                <span>{t.hero.compatibilityBadge}</span>
               </div>
             </div>
           </div>
@@ -107,7 +107,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
             {/* Simulation Header with Play/Pause button */}
             <div className="w-full flex items-center justify-between pb-3 text-xs text-slate-500">
               <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                <Wifi className="w-3.5 h-3.5 text-amber-500" />
+                <Wifi className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 {t.hero.interactiveDemoTitle}
               </span>
               <button
@@ -117,7 +117,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                 title={isPlaying ? t.hero.pauseAnimation : t.hero.playAnimation}
               >
                 {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                <span>{isPlaying ? 'Pause' : 'Lecture'}</span>
+                <span>{isPlaying ? t.hero.pause : t.hero.play}</span>
               </button>
             </div>
 
@@ -144,6 +144,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                   businessTitle="Atelier Atlas Design"
                   showFlipButton={false}
                   interactiveTilt={false}
+                  currentLanguage={currentLanguage}
                 />
               </div>
 
@@ -175,7 +176,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                     Yassine Bennani
                   </h3>
                   <p className="text-[11px] text-neutral-600 font-medium">
-                    Atelier Atlas Design · Casablanca
+                    {t.hero.sampleLocation}
                   </p>
                 </div>
 
@@ -191,8 +192,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
                 {/* Service teaser */}
                 <div className="mt-3 pt-2 border-t border-slate-100 text-[10px] text-slate-500 flex justify-between items-center">
-                  <span>Architecture d’intérieur</span>
-                  <span className="font-semibold text-black">Dès 15 000 MAD</span>
+                  <span>{t.hero.sampleJob}</span>
+                  <span className="font-semibold text-black">{t.hero.samplePrice}</span>
                 </div>
 
                 {/* Micro TAGTOP branding */}

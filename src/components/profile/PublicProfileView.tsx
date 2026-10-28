@@ -10,16 +10,12 @@ import {
   Globe,
   MapPin,
   Share2,
-  Download,
-  ExternalLink,
   CheckCircle2,
   AlertTriangle,
   Clock,
   Sparkles,
   FileText,
-  Play,
   UserPlus,
-  Shield,
 } from 'lucide-react';
 
 interface PublicProfileViewProps {
@@ -108,13 +104,13 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
         
         {/* Prototype Bar to toggle back */}
         <div className="max-w-md mx-auto w-full mb-6 p-2 bg-neutral-900 text-white rounded-xl text-xs flex items-center justify-between">
-          <span className="font-mono text-amber-400">Mode : Profil Expiré (Discret)</span>
+          <span className="font-mono text-amber-400">{t.profile.expiredModeBadge}</span>
           <button
             type="button"
             onClick={() => setIsSimulatingExpired(false)}
             className="px-2.5 py-1 bg-amber-400 text-black font-semibold rounded"
           >
-            Voir le profil actif
+            {t.profile.viewActiveProfileBtn}
           </button>
         </div>
 
@@ -132,7 +128,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
           </p>
 
           <div className="pt-4 border-t border-neutral-100 text-[11px] text-neutral-400">
-            TAGTOP · Réseau de cartes de visite NFC au Maroc
+            {t.profile.networkFooter}
           </div>
         </div>
 
@@ -174,20 +170,24 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
       {/* Prototype Testing Bar */}
       <div className="max-w-md mx-auto mb-4 bg-white rounded-2xl p-2.5 border border-neutral-200 shadow-xs flex items-center justify-between flex-wrap gap-2 text-xs">
         <div className="flex items-center gap-1.5 font-semibold text-neutral-800">
-          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-          <span>Style :</span>
+          <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span>{t.profile.styleLabel}</span>
           {(['executive', 'creative', 'artisan'] as const).map((tmpl) => (
             <button
               key={tmpl}
               type="button"
               onClick={() => setActiveTemplate(tmpl)}
-              className={`px-2 py-0.5 rounded capitalize ${
+              className={`px-2 py-0.5 rounded ${
                 activeTemplate === tmpl
                   ? 'bg-neutral-900 text-white font-bold'
                   : 'text-neutral-600 hover:bg-neutral-100'
               }`}
             >
-              {tmpl}
+              {tmpl === 'executive'
+                ? t.common.templateExecutive
+                : tmpl === 'creative'
+                ? t.common.templateCreative
+                : t.common.templateArtisan}
             </button>
           ))}
         </div>
@@ -197,7 +197,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
           onClick={() => setIsSimulatingExpired(true)}
           className="text-[11px] text-red-600 hover:text-red-800 font-semibold underline decoration-dotted"
         >
-          Tester statut expiré
+          {t.profile.testExpiredBtn}
         </button>
       </div>
 
@@ -206,7 +206,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
         <div className="max-w-md mx-auto mb-4 p-3 bg-amber-500 text-black rounded-2xl text-xs font-semibold flex items-center gap-2 shadow-sm">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <span>
-            Période de grâce de 14 jours en cours jusqu’au {profile.graceDeadlineDate || 'prochainement'}.
+            {t.profile.graceWarningText} {profile.graceDeadlineDate || '2026-11-04'}.
           </span>
         </div>
       )}
@@ -244,8 +244,8 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
 
           {/* Location */}
           <div className="flex items-center justify-center gap-1 text-[11px] text-neutral-400 mt-2">
-            <MapPin className="w-3 h-3 text-amber-400" />
-            <span>{profile.city}, Maroc</span>
+            <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
+            <span>{profile.city}, {t.profile.morocco}</span>
           </div>
 
           {/* Bio */}
@@ -262,7 +262,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
               onClick={handleSaveContact}
               className={`py-3 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98] ${templateConfig.accentColor}`}
             >
-              <UserPlus className="w-4 h-4" />
+              <UserPlus className="w-4 h-4 shrink-0" />
               <span>{t.common.saveContactCTA}</span>
             </button>
 
@@ -272,7 +272,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
               rel="noreferrer"
               className="py-3 px-4 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98]"
             >
-              <MessageSquare className="w-4 h-4" />
+              <MessageSquare className="w-4 h-4 shrink-0" />
               <span>{t.common.whatsappCTA}</span>
             </a>
           </div>
@@ -282,7 +282,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
             <a
               href={`tel:${profile.phone}`}
               className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-              title="Appeler"
+              title={t.profile.callAction}
             >
               <Phone className="w-4 h-4" />
             </a>
@@ -290,7 +290,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
             <a
               href={`mailto:${profile.email}`}
               className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-              title="Envoyer un email"
+              title={t.profile.emailAction}
             >
               <Mail className="w-4 h-4" />
             </a>
@@ -301,7 +301,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                 target="_blank"
                 rel="noreferrer"
                 className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-                title="Visiter le site web"
+                title={t.profile.websiteAction}
               >
                 <Globe className="w-4 h-4" />
               </a>
@@ -311,12 +311,12 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
               type="button"
               onClick={handleShare}
               className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors relative"
-              title="Partager ce profil"
+              title={t.profile.shareAction}
             >
               <Share2 className="w-4 h-4" />
               {sharedToast && (
                 <span className="absolute -top-7 bg-neutral-900 text-white text-[10px] px-2 py-0.5 rounded whitespace-nowrap">
-                  Lien copié !
+                  {t.profile.copiedToast}
                 </span>
               )}
             </button>
@@ -334,7 +334,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                 <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800">
                   {t.profile.productsTitle}
                 </h3>
-                <span className="text-[10px] text-neutral-500">Tarifs indicatifs</span>
+                <span className="text-[10px] text-neutral-500">{t.profile.indicativePrices}</span>
               </div>
 
               <div className="space-y-2.5">
@@ -351,7 +351,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                         </p>
                       </div>
                       <span className="text-xs font-extrabold text-neutral-950 whitespace-nowrap tabular-nums">
-                        {item.priceMAD} MAD
+                        {item.priceMAD} {t.common.currency}
                       </span>
                     </div>
                   </div>
@@ -372,12 +372,12 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                   href="#"
                   onClick={(e) => {
                     e.preventDefault();
-                    alert(`Téléchargement simulé : ${doc.title}`);
+                    alert(`${t.profile.simulatedDownload} ${doc.title}`);
                   }}
                   className="p-3 rounded-xl border border-neutral-200 flex items-center justify-between text-xs text-neutral-700 hover:bg-neutral-50 transition-colors"
                 >
                   <div className="flex items-center gap-2.5">
-                    <FileText className="w-4 h-4 text-amber-600" />
+                    <FileText className="w-4 h-4 text-amber-600 shrink-0" />
                     <span className="font-semibold text-neutral-900">{doc.title}</span>
                   </div>
                   <span className="text-[10px] text-neutral-500 font-mono">{doc.size}</span>
@@ -401,7 +401,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
               <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-center space-y-1 text-emerald-800 text-xs">
                 <CheckCircle2 className="w-5 h-5 mx-auto text-emerald-600" />
                 <p className="font-bold">{t.profile.leadSuccess}</p>
-                <p className="text-[11px] text-emerald-700">Vos coordonnées ont été enregistrées avec succès.</p>
+                <p className="text-[11px] text-emerald-700">{t.profile.leadSuccessDesc}</p>
               </div>
             ) : (
               <form onSubmit={handleSubmitLead} className="space-y-2.5 text-xs">
@@ -414,7 +414,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                     required
                     value={leadName}
                     onChange={(e) => setLeadName(e.target.value)}
-                    placeholder="Votre nom"
+                    placeholder={t.profile.namePlaceholder}
                     className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs"
                   />
                 </div>
@@ -441,7 +441,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                     type="email"
                     value={leadEmail}
                     onChange={(e) => setLeadEmail(e.target.value)}
-                    placeholder="contact@exemple.ma"
+                    placeholder={t.profile.emailPlaceholder}
                     className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs"
                   />
                 </div>
@@ -454,7 +454,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                     type="text"
                     value={leadCompany}
                     onChange={(e) => setLeadCompany(e.target.value)}
-                    placeholder="Votre entreprise"
+                    placeholder={t.profile.companyPlaceholder}
                     className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs"
                   />
                 </div>
@@ -467,7 +467,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                     rows={2}
                     value={leadNotes}
                     onChange={(e) => setLeadNotes(e.target.value)}
-                    placeholder="Projet ou objet du contact..."
+                    placeholder={t.profile.notesPlaceholder}
                     className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs"
                   />
                 </div>
@@ -495,11 +495,11 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
             )}
           </div>
 
-          {/* Discreet Digital TAGTOP Branding Footer (when required by entitlement) */}
+          {/* Discreet Digital TAGTOP Branding Footer */}
           {profile.digitalTagtopBranding && (
             <div className="pt-4 border-t border-neutral-100 text-center space-y-1">
               <div className="flex items-center justify-center gap-1.5 opacity-60 hover:opacity-100 transition-opacity">
-                <span className="text-[10px] text-neutral-500 font-mono">PROPULSÉ PAR</span>
+                <span className="text-[10px] text-neutral-500 font-mono">{t.nfcCard.poweredBy}</span>
                 <img
                   src={TAGTOP_LOGO_URL}
                   alt="TAGTOP"
@@ -507,7 +507,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                 />
               </div>
               <p className="text-[9px] text-neutral-400">
-                Cartes de visite NFC & Profils connectés au Maroc
+                {t.profile.digitalFooterNetwork}
               </p>
             </div>
           )}

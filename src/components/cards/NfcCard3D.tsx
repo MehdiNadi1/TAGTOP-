@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { CardColor, CardBranding } from '../../types';
+import { CardColor, CardBranding, Language } from '../../types';
+import { translations } from '../../i18n/translations';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import { Wifi, RotateCw } from 'lucide-react';
 
@@ -13,6 +14,7 @@ interface NfcCard3DProps {
   interactiveTilt?: boolean;
   className?: string;
   showFlipButton?: boolean;
+  currentLanguage?: Language;
 }
 
 export const NfcCard3D: React.FC<NfcCard3DProps> = ({
@@ -25,11 +27,13 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
   interactiveTilt = true,
   className = '',
   showFlipButton = true,
+  currentLanguage = 'fr',
 }) => {
   const [isFlipped, setIsFlipped] = useState(false);
   const [rotateX, setRotateX] = useState(0);
   const [rotateY, setRotateY] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
+  const t = translations[currentLanguage];
 
   const isBlack = color === 'black';
 
@@ -70,7 +74,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
         onClick={() => setIsFlipped(!isFlipped)}
         role="button"
         tabIndex={0}
-        aria-label={`Carte NFC TAGTOP ${isBlack ? 'Noir Mat' : 'Blanc Mat'}, cliquer pour retourner`}
+        aria-label={`${t.nfcCard.cardLabel} ${isBlack ? 'Noir Mat' : 'Blanc Mat'}`}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -120,7 +124,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
               </div>
 
               {/* NFC Contactless Wave Indicator */}
-              <div className="flex items-center gap-1.5 opacity-80">
+              <div className="flex items-center gap-1.5 opacity-80" dir="ltr">
                 <Wifi
                   className={`w-5 h-5 rotate-90 ${
                     isBlack ? 'text-amber-400' : 'text-neutral-800'
@@ -168,15 +172,15 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
             <div className="flex items-end justify-between pt-2 border-t border-current/10">
               <div>
                 <p className="text-[10px] uppercase tracking-wider font-mono opacity-60">
-                  Titulaire Professionnel
+                  {t.nfcCard.holderLabel}
                 </p>
                 <p className="text-sm font-semibold tracking-wide uppercase truncate max-w-[220px]">
                   {businessName}
                 </p>
               </div>
-              <div className="text-right">
+              <div className="text-right rtl:text-left">
                 <p className="text-[9px] font-mono opacity-50 tracking-widest">
-                  MAROC · SECURE CHIP
+                  {t.nfcCard.secureChip}
                 </p>
               </div>
             </div>
@@ -200,12 +204,12 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
             <div className={`-mx-6 -mt-1 h-9 ${isBlack ? 'bg-neutral-900 border-y border-neutral-800' : 'bg-neutral-800'}`} />
 
             <div className="my-auto space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono opacity-70">
+              <div className="flex items-center justify-between text-xs font-mono opacity-70" dir="ltr">
                 <span>NFC ID: {cardUid}</span>
                 <span>ISO/IEC 14443-A</span>
               </div>
-              <p className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'} leading-relaxed`}>
-                Approchez cette carte de tout smartphone compatible pour accéder instantanément au profil professionnel. Sans application.
+              <p className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'} leading-relaxed text-left rtl:text-right`}>
+                {t.nfcCard.backInstructions}
               </p>
             </div>
 
@@ -213,7 +217,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
             <div className="flex items-center justify-between pt-2 border-t border-current/10 text-xs">
               {branding === 'branded' ? (
                 <div className="flex items-center gap-1.5 opacity-80">
-                  <span className="text-[10px] font-mono tracking-wider">PROPULSÉ PAR</span>
+                  <span className="text-[10px] font-mono tracking-wider">{t.nfcCard.poweredBy}</span>
                   <img
                     src={TAGTOP_LOGO_URL}
                     alt="TAGTOP"
@@ -221,9 +225,9 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
                   />
                 </div>
               ) : (
-                <span className="text-[10px] font-mono opacity-60">CARTE SUR MESURE PRIVÉE</span>
+                <span className="text-[10px] font-mono opacity-60">{t.nfcCard.bespokeCard}</span>
               )}
-              <span className="text-[10px] font-mono opacity-60">FABRIQUÉ POUR LE MAROC</span>
+              <span className="text-[10px] font-mono opacity-60">{t.nfcCard.madeForMorocco}</span>
             </div>
           </div>
         </div>
@@ -238,10 +242,10 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
             className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors"
           >
             <RotateCw className="w-3.5 h-3.5" />
-            <span>{isFlipped ? 'Voir le recto' : 'Retourner la carte (verso)'}</span>
+            <span>{isFlipped ? t.nfcCard.flipFront : t.nfcCard.flipBack}</span>
           </button>
           <span className="text-slate-400">·</span>
-          <span className="text-slate-400">Inclinez avec la souris</span>
+          <span className="text-slate-400">{t.nfcCard.tiltHint}</span>
         </div>
       )}
     </div>

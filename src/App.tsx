@@ -40,6 +40,7 @@ import { PublicProfileView } from './components/profile/PublicProfileView';
 import { CustomerDashboard } from './components/dashboard/CustomerDashboard';
 import { FounderDashboard } from './components/dashboard/FounderDashboard';
 import { ContactQuoteModal } from './components/modals/ContactQuoteModal';
+import { translations } from './i18n/translations';
 
 export default function App() {
   // Global presentation language (default initial: French 'fr')
@@ -144,7 +145,7 @@ export default function App() {
           : o
       )
     );
-    alert('Vos remarques ont été transmises au fondateur pour modification du BAT.');
+    alert(translations[currentLanguage].app.proofModificationSentAlert);
   };
 
   const handleSubmitRenewalTransfer = (transfer: BankTransferRenewal) => {
@@ -293,10 +294,10 @@ export default function App() {
               onClick={() => setCurrentView('marketing')}
               className="text-xs font-bold text-slate-600 hover:text-black"
             >
-              ← Retour au site TAGTOP
+              ← {translations[currentLanguage].app.backToSite}
             </button>
             <span className="text-xs font-mono text-slate-500">
-              Aperçu en direct du profil {profiles[0].displayName}
+              {translations[currentLanguage].app.livePreviewOf} {profiles[0].displayName}
             </span>
           </div>
           <PublicProfileView

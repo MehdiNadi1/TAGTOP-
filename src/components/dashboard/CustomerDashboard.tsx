@@ -21,20 +21,12 @@ import {
   Settings,
   AlertTriangle,
   CheckCircle2,
-  Clock,
-  ExternalLink,
-  Plus,
-  Edit3,
   Eye,
   FileCheck,
   MessageSquare,
   Phone,
-  Mail,
-  Send,
-  Download,
-  Shield,
+  Plus,
   Smartphone,
-  ChevronRight,
 } from 'lucide-react';
 
 interface CustomerDashboardProps {
@@ -57,13 +49,11 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   profiles,
   orders,
   leads,
-  transfers,
   settings,
   onUpdateProfile,
   onApproveProof,
   onRequestProofChange,
   onSubmitRenewalTransfer,
-  onViewChange,
   onOrderNewCard,
 }) => {
   const t = translations[currentLanguage];
@@ -78,10 +68,6 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [editorData, setEditorData] = useState<BusinessProfile>(currentProfile);
   const [mobileEditorTab, setMobileEditorTab] = useState<'edit' | 'preview'>('edit');
   const [profileSavedToast, setProfileSavedToast] = useState(false);
-
-  // Proof revision state
-  const [rejectProofReason, setRejectProofReason] = useState('');
-  const [activeOrderProofId, setActiveOrderProofId] = useState<string | null>(null);
 
   // Renewal form state
   const [renewalReceipt, setRenewalReceipt] = useState('');
@@ -147,10 +133,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <span className="text-xs font-mono uppercase bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold">
-                Espace Propriétaire
+                {t.customerDashboard.ownerSpace}
               </span>
               <span className="text-xs text-slate-500">
-                Compte : {currentProfile.ownerEmail}
+                {t.customerDashboard.accountLabel} {currentProfile.ownerEmail}
               </span>
             </div>
             <h1 className="text-2xl font-extrabold text-black mt-1">
@@ -167,7 +153,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             >
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.displayName} ({p.accessState})
+                  {p.displayName} ({p.accessState === 'private_preview' ? t.common.privatePreview : p.accessState === 'grace_period' ? t.common.gracePeriod : p.accessState === 'expired_suspended' ? t.common.suspended : t.common.active})
                 </option>
               ))}
             </select>
@@ -177,8 +163,8 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               onClick={onOrderNewCard}
               className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-xs"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Commander une nouvelle carte</span>
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span>{t.customerDashboard.orderNewCard}</span>
             </button>
           </div>
         </div>
@@ -190,10 +176,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <AlertTriangle className="w-6 h-6 shrink-0" />
               <div>
                 <p className="font-extrabold text-sm">
-                  Période de grâce de 14 jours active pour « {currentProfile.displayName} »
+                  {t.customerDashboard.graceBannerTitle} « {currentProfile.displayName} »
                 </p>
                 <p className="text-xs text-black/80">
-                  Votre profil reste public et accessible par NFC. Date limite de renouvellement : {currentProfile.graceDeadlineDate}.
+                  {t.customerDashboard.graceBannerDesc} {currentProfile.graceDeadlineDate || '2026-11-04'}.
                 </p>
               </div>
             </div>
@@ -202,7 +188,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               onClick={() => setActiveTab('subscription')}
               className="px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs"
             >
-              Régulariser par virement (99 MAD)
+              {t.customerDashboard.graceBannerAction}
             </button>
           </div>
         )}
@@ -213,10 +199,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <Eye className="w-5 h-5 text-amber-400 shrink-0" />
               <div>
                 <p className="font-bold text-sm text-white">
-                  Ce profil est actuellement en APERÇU PRIVÉ GRATUIT
+                  {t.customerDashboard.previewBannerTitle}
                 </p>
                 <p className="text-xs text-neutral-400">
-                  Visible uniquement par vous. Pour publier ce profil en ligne et l'associer à une puce NFC, une commande de carte physique est requise.
+                  {t.customerDashboard.previewBannerDesc}
                 </p>
               </div>
             </div>
@@ -225,7 +211,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               onClick={onOrderNewCard}
               className="px-4 py-2 bg-[#FFD700] text-black font-bold text-xs rounded-xl"
             >
-              Commander la carte pour publier
+              {t.customerDashboard.previewBannerAction}
             </button>
           </div>
         )}
@@ -259,7 +245,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-4 h-4 shrink-0" />
                       <span>{tab.label}</span>
                     </div>
                     {tab.badge !== undefined && (
@@ -283,33 +269,33 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 {/* Metric Cards Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-white p-5 rounded-2xl border border-neutral-200">
-                    <p className="text-xs text-slate-500 font-medium">Statut du profil</p>
+                    <p className="text-xs text-slate-500 font-medium">{t.customerDashboard.profileStatus}</p>
                     <p className="text-lg font-extrabold text-black mt-1 capitalize flex items-center gap-2">
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                      <span>{currentProfile.accessState.replace('_', ' ')}</span>
+                      <span>{currentProfile.accessState === 'active' ? t.common.active : currentProfile.accessState === 'private_preview' ? t.common.privatePreview : currentProfile.accessState === 'grace_period' ? t.common.gracePeriod : t.common.suspended}</span>
                     </p>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Échéance : {currentProfile.expiryDate}
+                      {t.customerDashboard.expiryLabel} {currentProfile.expiryDate}
                     </p>
                   </div>
 
                   <div className="bg-white p-5 rounded-2xl border border-neutral-200">
-                    <p className="text-xs text-slate-500 font-medium">Consultations anonymes</p>
+                    <p className="text-xs text-slate-500 font-medium">{t.customerDashboard.anonymousViews}</p>
                     <p className="text-2xl font-extrabold text-black mt-1 tabular-nums">
                       148
                     </p>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Taps NFC & scans QR au Maroc
+                      {t.customerDashboard.tapsAndScans}
                     </p>
                   </div>
 
                   <div className="bg-white p-5 rounded-2xl border border-neutral-200">
-                    <p className="text-xs text-slate-500 font-medium">Prospects collectés (Leads)</p>
+                    <p className="text-xs text-slate-500 font-medium">{t.customerDashboard.collectedLeads}</p>
                     <p className="text-2xl font-extrabold text-amber-600 mt-1 tabular-nums">
                       {leads.length}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-1">
-                      Formulaires soumis avec consentement
+                      {t.customerDashboard.formsSubmittedWithConsent}
                     </p>
                   </div>
                 </div>
@@ -317,23 +303,23 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 {/* 3-Stage Timeline Card */}
                 <div className="bg-white rounded-3xl p-6 border border-neutral-200 space-y-4">
                   <h3 className="text-base font-bold text-black">
-                    Calendrier de votre abonnement standard
+                    {t.customerDashboard.timelineTitle}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                     <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-950">
-                      <div className="font-bold">1. 6 premiers mois</div>
-                      <div className="text-sm font-extrabold mt-1">Inclus avec la carte</div>
-                      <div className="text-[11px] text-emerald-700 mt-1">Statut : Actif jusqu'au {currentProfile.expiryDate}</div>
+                      <div className="font-bold">{t.customerDashboard.stage1Title}</div>
+                      <div className="text-sm font-extrabold mt-1">{t.customerDashboard.stage1Value}</div>
+                      <div className="text-[11px] text-emerald-700 mt-1">{t.customerDashboard.stage1ActiveUntil} {currentProfile.expiryDate}</div>
                     </div>
                     <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 text-neutral-900">
-                      <div className="font-bold">2. 6 mois suivants</div>
-                      <div className="text-sm font-extrabold mt-1">99 MAD</div>
-                      <div className="text-[11px] text-neutral-500 mt-1">Virement bancaire manuel</div>
+                      <div className="font-bold">{t.customerDashboard.stage2Title}</div>
+                      <div className="text-sm font-extrabold mt-1">{t.customerDashboard.stage2Value}</div>
+                      <div className="text-[11px] text-neutral-500 mt-1">{t.customerDashboard.stage2Manual}</div>
                     </div>
                     <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 text-neutral-900">
-                      <div className="font-bold">3. Périodes annuelles</div>
-                      <div className="text-sm font-extrabold mt-1">199 MAD / an</div>
-                      <div className="text-[11px] text-neutral-500 mt-1">Continuité et mises à jour illimitées</div>
+                      <div className="font-bold">{t.customerDashboard.stage3Title}</div>
+                      <div className="text-sm font-extrabold mt-1">{t.customerDashboard.stage3Value}</div>
+                      <div className="text-[11px] text-neutral-500 mt-1">{t.customerDashboard.stage3Continuity}</div>
                     </div>
                   </div>
                 </div>
@@ -342,14 +328,14 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <div className="bg-white rounded-3xl p-6 border border-neutral-200 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-base font-bold text-black">
-                      Derniers contacts reçus via le formulaire
+                      {t.customerDashboard.recentLeadsTitle}
                     </h3>
                     <button
                       type="button"
                       onClick={() => setActiveTab('leads')}
                       className="text-xs font-bold text-amber-700 hover:text-amber-800"
                     >
-                      Voir tous les prospects ({leads.length})
+                      {t.customerDashboard.viewAllLeads} ({leads.length})
                     </button>
                   </div>
 
@@ -358,7 +344,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       <div key={lead.id} className="py-3 flex items-center justify-between gap-4 text-xs">
                         <div>
                           <p className="font-bold text-black">{lead.name}</p>
-                          <p className="text-slate-500">{lead.company || 'Particulier'} · {lead.phone}</p>
+                          <p className="text-slate-500">{lead.company || t.customerDashboard.individual} · {lead.phone}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <a
@@ -366,14 +352,14 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                             target="_blank"
                             rel="noreferrer"
                             className="p-2 bg-emerald-100 text-emerald-800 rounded-lg hover:bg-emerald-200"
-                            title="Ouvrir WhatsApp"
+                            title={t.customerDashboard.openWhatsApp}
                           >
                             <MessageSquare className="w-3.5 h-3.5" />
                           </a>
                           <a
                             href={`tel:${lead.phone}`}
                             className="p-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200"
-                            title="Appeler"
+                            title={t.customerDashboard.call}
                           >
                             <Phone className="w-3.5 h-3.5" />
                           </a>
@@ -394,10 +380,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                   <div>
                     <h2 className="text-lg font-bold text-black">
-                      Éditeur de Profil Digital : {editorData.displayName}
+                      {t.customerDashboard.editorTitle} {editorData.displayName}
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Modifications instantanées synchronisées avec votre carte NFC.
+                      {t.customerDashboard.editorSubtitle}
                     </p>
                   </div>
 
@@ -410,7 +396,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         mobileEditorTab === 'edit' ? 'bg-white shadow-xs text-black' : 'text-slate-600'
                       }`}
                     >
-                      Modifier
+                      {t.customerDashboard.editBtn}
                     </button>
                     <button
                       type="button"
@@ -419,15 +405,15 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         mobileEditorTab === 'preview' ? 'bg-white shadow-xs text-black' : 'text-slate-600'
                       }`}
                     >
-                      Aperçu Live
+                      {t.customerDashboard.previewBtn}
                     </button>
                   </div>
                 </div>
 
                 {profileSavedToast && (
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-bold flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    <span>Modifications enregistrées avec succès !</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{t.customerDashboard.savedToast}</span>
                   </div>
                 )}
 
@@ -443,20 +429,24 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   >
                     {/* Template Chooser */}
                     <div className="space-y-2">
-                      <label className="font-bold text-slate-900 block">Modèle graphique</label>
+                      <label className="font-bold text-slate-900 block">{t.customerDashboard.templateLabel}</label>
                       <div className="grid grid-cols-3 gap-2">
                         {(['executive', 'creative', 'artisan'] as const).map((tId) => (
                           <button
                             key={tId}
                             type="button"
                             onClick={() => setEditorData({ ...editorData, templateId: tId })}
-                            className={`p-2.5 rounded-xl border text-center font-bold capitalize ${
+                            className={`p-2.5 rounded-xl border text-center font-bold ${
                               editorData.templateId === tId
                                 ? 'border-amber-400 bg-amber-50 text-black'
                                 : 'border-slate-200 text-slate-600'
                             }`}
                           >
-                            {tId}
+                            {tId === 'executive'
+                              ? t.common.templateExecutive
+                              : tId === 'creative'
+                              ? t.common.templateCreative
+                              : t.common.templateArtisan}
                           </button>
                         ))}
                       </div>
@@ -465,7 +455,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     {/* Basic Info */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Nom affiché</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.displayNameLabel}</label>
                         <input
                           type="text"
                           value={editorData.displayName}
@@ -474,7 +464,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Titre / Poste</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.jobTitleLabel}</label>
                         <input
                           type="text"
                           value={editorData.jobTitle}
@@ -486,7 +476,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Entreprise</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.companyLabel}</label>
                         <input
                           type="text"
                           value={editorData.company}
@@ -495,7 +485,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Ville au Maroc</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.cityLabel}</label>
                         <input
                           type="text"
                           value={editorData.city}
@@ -507,7 +497,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                     {/* Bio */}
                     <div>
-                      <label className="block text-slate-700 font-semibold mb-1">Bio / Présentation</label>
+                      <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.bioLabel}</label>
                       <textarea
                         rows={3}
                         value={editorData.bio}
@@ -519,7 +509,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     {/* Contacts */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Téléphone cellulaire</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.phoneLabel}</label>
                         <input
                           type="text"
                           value={editorData.phone}
@@ -528,7 +518,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">WhatsApp</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.whatsappLabel}</label>
                         <input
                           type="text"
                           value={editorData.whatsapp}
@@ -540,7 +530,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Email professionnel</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.emailLabel}</label>
                         <input
                           type="email"
                           value={editorData.email}
@@ -549,7 +539,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         />
                       </div>
                       <div>
-                        <label className="block text-slate-700 font-semibold mb-1">Site Web</label>
+                        <label className="block text-slate-700 font-semibold mb-1">{t.customerDashboard.websiteLabel}</label>
                         <input
                           type="url"
                           value={editorData.website}
@@ -561,7 +551,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                     {/* Digital Branding Notice */}
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-[11px] text-neutral-600">
-                      <strong>Marquage digital TAGTOP :</strong> La suppression de la mention TAGTOP dans le pied de page du profil digital est une option d'abonnement avancée distincte de la suppression physique sur la carte. Actuellement non configurée au lancement.
+                      <strong>{t.customerDashboard.brandingNoticeTitle}</strong> {t.customerDashboard.brandingNoticeDesc}
                     </div>
 
                     <button
@@ -599,9 +589,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <div className="bg-white rounded-3xl p-6 border border-neutral-200 space-y-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-base font-bold text-black">Mes Cartes & Commandes</h3>
+                      <h3 className="text-base font-bold text-black">{t.customerDashboard.myCardsOrdersTitle}</h3>
                       <p className="text-xs text-slate-500">
-                        Suivi de production, validation des maquettes (BAT) et encodage.
+                        {t.customerDashboard.myCardsOrdersSubtitle}
                       </p>
                     </div>
                     <button
@@ -609,7 +599,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       onClick={onOrderNewCard}
                       className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold text-xs px-3.5 py-2 rounded-xl"
                     >
-                      Nouvelle commande
+                      {t.customerDashboard.newOrderBtn}
                     </button>
                   </div>
 
@@ -622,8 +612,8 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div>
                             <span className="font-mono font-bold text-black text-sm">{ord.id}</span>
-                            <span className="text-xs text-slate-500 ml-2">
-                              · Carte PVC {ord.cardColor === 'black' ? 'Noire' : 'Blanche'} ({ord.cardBranding === 'branded' ? 'Avec logo TAGTOP' : 'Sans logo TAGTOP'})
+                            <span className="text-xs text-slate-500 ml-2 rtl:ml-0 rtl:mr-2">
+                              · {t.configurator.summaryCardPVC} {ord.cardColor === 'black' ? t.configurator.matteBlack : t.configurator.matteWhite} ({ord.cardBranding === 'branded' ? t.configurator.brandedOption : t.configurator.unbrandedOption})
                             </span>
                           </div>
                           <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 uppercase">
@@ -634,16 +624,16 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         {/* Progress Status Bar */}
                         <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-semibold text-slate-500">
                           <div className={`p-2 rounded-lg ${ord.orderStatus !== 'received' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'}`}>
-                            1. Reçue
+                            {t.customerDashboard.stepReceived}
                           </div>
                           <div className={`p-2 rounded-lg ${['customer_approved', 'production', 'linked', 'shipped', 'delivered'].includes(ord.orderStatus) ? 'bg-emerald-100 text-emerald-800' : ord.orderStatus === 'artwork_review' ? 'bg-amber-100 text-amber-900' : 'bg-slate-100'}`}>
-                            2. Validation BAT
+                            {t.customerDashboard.stepProofReview}
                           </div>
                           <div className={`p-2 rounded-lg ${['production', 'linked', 'shipped', 'delivered'].includes(ord.orderStatus) ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100'}`}>
-                            3. Encodage & Fab
+                            {t.customerDashboard.stepEncodingFab}
                           </div>
                           <div className={`p-2 rounded-lg ${ord.orderStatus === 'delivered' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100'}`}>
-                            4. Livrée (COD)
+                            {t.customerDashboard.stepDelivered}
                           </div>
                         </div>
 
@@ -651,11 +641,11 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         {ord.orderStatus === 'artwork_review' && (
                           <div className="p-4 bg-white rounded-xl border border-amber-300 space-y-3">
                             <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                              <FileCheck className="w-4 h-4 text-amber-600" />
-                              <span>Bon à Tirer (BAT) prêt pour validation</span>
+                              <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span>{t.customerDashboard.proofReadyTitle}</span>
                             </div>
                             <p className="text-xs text-slate-600">
-                              Le visuel d'impression a été préparé par le fondateur. Veuillez valider la maquette ou formuler vos remarques.
+                              {t.customerDashboard.proofReadyDesc}
                             </p>
                             
                             <div className="flex items-center gap-3">
@@ -664,25 +654,25 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                                 onClick={() => onApproveProof(ord.id)}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs"
                               >
-                                Approuver le bon à tirer (BAT)
+                                {t.customerDashboard.approveProofBtn}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const reason = prompt('Indiquez vos remarques ou modifications souhaitées pour le fondateur :');
+                                  const reason = prompt(t.customerDashboard.proofRemarksPrompt);
                                   if (reason) onRequestProofChange(ord.id, reason);
                                 }}
                                 className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs px-3.5 py-2 rounded-lg"
                               >
-                                Demander une modification
+                                {t.customerDashboard.requestProofChangeBtn}
                               </button>
                             </div>
                           </div>
                         )}
 
                         <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-neutral-200">
-                          <span>Profil lié : <strong>{ord.profileName}</strong></span>
-                          <span>Règlement : <strong>{ord.priceMAD} MAD ({ord.paymentStatus === 'cod_collected' ? 'Payé à la livraison' : 'Dû à la livraison'})</strong></span>
+                          <span>{t.customerDashboard.linkedProfile} <strong>{ord.profileName}</strong></span>
+                          <span>{t.customerDashboard.paymentLabel} <strong>{ord.priceMAD} {t.common.currency} ({ord.paymentStatus === 'cod_collected' ? t.customerDashboard.paidOnDelivery : t.customerDashboard.dueOnDelivery})</strong></span>
                         </div>
                       </div>
                     ))}
@@ -696,14 +686,14 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <div className="bg-white rounded-3xl p-6 border border-neutral-200 space-y-6">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-base font-bold text-black">Prospects Volontaires Reçus</h3>
+                    <h3 className="text-base font-bold text-black">{t.customerDashboard.leadsTitle}</h3>
                     <p className="text-xs text-slate-500">
-                      Coordonnées transmises par vos contacts via votre profil NFC.
+                      {t.customerDashboard.leadsSubtitle}
                     </p>
                   </div>
                   <input
                     type="text"
-                    placeholder="Rechercher un contact..."
+                    placeholder={t.customerDashboard.searchPlaceholder}
                     value={leadSearchQuery}
                     onChange={(e) => setLeadSearchQuery(e.target.value)}
                     className="border border-slate-300 rounded-xl px-3 py-1.5 text-xs w-full sm:w-64"
@@ -714,12 +704,12 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <table className="w-full text-left rtl:text-right text-xs">
                     <thead>
                       <tr className="border-b border-slate-200 text-slate-500 font-semibold">
-                        <th className="py-2.5 px-3">Nom & Entreprise</th>
-                        <th className="py-2.5 px-3">Téléphone</th>
-                        <th className="py-2.5 px-3">Email</th>
-                        <th className="py-2.5 px-3">Date</th>
-                        <th className="py-2.5 px-3">Opt-in Promo</th>
-                        <th className="py-2.5 px-3 text-right rtl:text-left">Contacter</th>
+                        <th className="py-2.5 px-3">{t.customerDashboard.colName}</th>
+                        <th className="py-2.5 px-3">{t.customerDashboard.colPhone}</th>
+                        <th className="py-2.5 px-3">{t.customerDashboard.colEmail}</th>
+                        <th className="py-2.5 px-3">{t.customerDashboard.colDate}</th>
+                        <th className="py-2.5 px-3">{t.customerDashboard.colPromo}</th>
+                        <th className="py-2.5 px-3 text-right rtl:text-left">{t.customerDashboard.colContact}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -727,7 +717,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         <tr key={lead.id} className="hover:bg-neutral-50">
                           <td className="py-3 px-3">
                             <div className="font-bold text-black">{lead.name}</div>
-                            <div className="text-[11px] text-slate-500">{lead.company || 'Particulier'}</div>
+                            <div className="text-[11px] text-slate-500">{lead.company || t.customerDashboard.individual}</div>
                             {lead.notes && (
                               <div className="text-[10px] text-slate-400 mt-0.5 line-clamp-1 italic">
                                 "{lead.notes}"
@@ -737,15 +727,15 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                           <td className="py-3 px-3 font-mono dir-ltr text-slate-800">{lead.phone}</td>
                           <td className="py-3 px-3 text-slate-600">{lead.email || '—'}</td>
                           <td className="py-3 px-3 text-slate-500">
-                            {new Date(lead.submittedAt).toLocaleDateString('fr-FR')}
+                            {new Date(lead.submittedAt).toLocaleDateString(currentLanguage === 'ar' ? 'ar-MA' : currentLanguage === 'en' ? 'en-US' : 'fr-FR')}
                           </td>
                           <td className="py-3 px-3">
                             {lead.promotionalConsent ? (
                               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                                Oui (Consenti)
+                                {t.customerDashboard.optInYes}
                               </span>
                             ) : (
-                              <span className="text-[10px] text-slate-400">Non</span>
+                              <span className="text-[10px] text-slate-400">{t.customerDashboard.optInNo}</span>
                             )}
                           </td>
                           <td className="py-3 px-3 text-right rtl:text-left">
@@ -755,14 +745,14 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                                 target="_blank"
                                 rel="noreferrer"
                                 className="p-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-800 rounded-lg"
-                                title="WhatsApp"
+                                title={t.customerDashboard.openWhatsApp}
                               >
                                 <MessageSquare className="w-3.5 h-3.5" />
                               </a>
                               <a
                                 href={`tel:${lead.phone}`}
                                 className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg"
-                                title="Appeler"
+                                title={t.customerDashboard.call}
                               >
                                 <Phone className="w-3.5 h-3.5" />
                               </a>
@@ -782,25 +772,26 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-900 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4 text-amber-600 shrink-0" />
                   <span>
-                    <strong>Statistiques de consultation :</strong> Données de démonstration marocaines représentatives. Un événement « Enregistrer le contact » correspond au clic ou téléchargement du vCard, sans garantie d'enregistrement dans le carnet d'adresses de l'utilisateur.
+                    <strong>{t.customerDashboard.analyticsNoteTitle} </strong>
+                    <span>{t.customerDashboard.analyticsNoteDesc}</span>
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
-                    <p className="text-xs text-slate-500">Taps & Visites Profil</p>
+                    <p className="text-xs text-slate-500">{t.customerDashboard.metricTaps}</p>
                     <p className="text-2xl font-black text-black tabular-nums mt-1">148</p>
                   </div>
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
-                    <p className="text-xs text-slate-500">Clics WhatsApp</p>
+                    <p className="text-xs text-slate-500">{t.customerDashboard.metricWhatsApp}</p>
                     <p className="text-2xl font-black text-emerald-600 tabular-nums mt-1">62</p>
                   </div>
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
-                    <p className="text-xs text-slate-500">Téléchargements vCard</p>
+                    <p className="text-xs text-slate-500">{t.customerDashboard.metricVCard}</p>
                     <p className="text-2xl font-black text-black tabular-nums mt-1">45</p>
                   </div>
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
-                    <p className="text-xs text-slate-500">Formulaires Soumis</p>
+                    <p className="text-xs text-slate-500">{t.customerDashboard.metricForms}</p>
                     <p className="text-2xl font-black text-amber-600 tabular-nums mt-1">{leads.length}</p>
                   </div>
                 </div>
@@ -811,9 +802,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             {activeTab === 'subscription' && (
               <div className="bg-white rounded-3xl p-6 border border-neutral-200 space-y-6">
                 <div>
-                  <h3 className="text-base font-bold text-black">Abonnement & Renouvellement Manuel</h3>
+                  <h3 className="text-base font-bold text-black">{t.customerDashboard.subscriptionTitle}</h3>
                   <p className="text-xs text-slate-500">
-                    Au Maroc, les renouvellements TAGTOP se règlent par virement bancaire vérifié manuellement par le fondateur.
+                    {t.customerDashboard.subscriptionSubtitle}
                   </p>
                 </div>
 
@@ -821,7 +812,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-semibold flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <span>
-                      Votre avis de virement a été transmis au fondateur pour vérification. Votre accès sera prolongé dès validation.
+                      {t.customerDashboard.renewalSubmittedToast}
                     </span>
                   </div>
                 )}
@@ -829,7 +820,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 {/* Bank Account Details */}
                 <div className="p-5 rounded-2xl bg-neutral-900 text-white border border-neutral-800 space-y-3">
                   <p className="text-xs font-mono text-amber-400 font-bold uppercase tracking-wider">
-                    Coordonnées Bancaires Officielles TAGTOP
+                    {t.customerDashboard.bankDetailsTitle}
                   </p>
                   <pre className="text-xs font-mono text-neutral-300 whitespace-pre-wrap leading-relaxed">
                     {settings.bankAccountDetails}
@@ -839,32 +830,32 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 {/* Claim Transfer Form */}
                 <form onSubmit={handleClaimTransfer} className="p-5 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-4 text-xs">
                   <h4 className="font-bold text-black text-sm">
-                    Déclarer un virement bancaire effectué
+                    {t.customerDashboard.claimTransferTitle}
                   </h4>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-slate-700 font-semibold mb-1">
-                        Période à renouveler
+                        {t.customerDashboard.renewalPeriodLabel}
                       </label>
                       <select
                         value={renewalPeriod}
                         onChange={(e) => setRenewalPeriod(e.target.value as any)}
                         className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-black"
                       >
-                        <option value="6months">Étape 2 : 6 mois supplémentaires (99 MAD)</option>
-                        <option value="annual">Étape 3 : 1 an renouvellement (199 MAD)</option>
+                        <option value="6months">{t.customerDashboard.option6Months}</option>
+                        <option value="annual">{t.customerDashboard.optionAnnual}</option>
                       </select>
                     </div>
 
                     <div>
                       <label className="block text-slate-700 font-semibold mb-1">
-                        Référence de virement ou numéro de reçu CIH / AWB
+                        {t.customerDashboard.receiptRefLabel}
                       </label>
                       <input
                         type="text"
                         required
-                        placeholder="ex: CIH-VIR-20261026-9042"
+                        placeholder={t.customerDashboard.receiptPlaceholder}
                         value={renewalReceipt}
                         onChange={(e) => setRenewalReceipt(e.target.value)}
                         className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-black font-mono"
@@ -872,12 +863,12 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3 pt-2">
+                  <div className="flex items-center gap-3 pt-2 flex-wrap">
                     <button
                       type="submit"
                       className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-extrabold px-6 py-2.5 rounded-xl transition-all shadow-xs"
                     >
-                      Transmettre pour vérification
+                      {t.customerDashboard.submitVerificationBtn}
                     </button>
                     <a
                       href={`https://wa.me/${settings.supportWhatsAppNumber.replace(/\D/g, '')}?text=Bonjour%20TAGTOP,%20je%20viens%20d'effectuer%20un%20virement%20de%20renouvellement.`}
@@ -886,7 +877,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5"
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                      <span>Confirmer sur WhatsApp</span>
+                      <span>{t.customerDashboard.confirmWhatsAppBtn}</span>
                     </a>
                   </div>
                 </form>
@@ -897,23 +888,23 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             {activeTab === 'settings' && (
               <div className="bg-white rounded-3xl p-6 border border-neutral-200 space-y-6">
                 <div>
-                  <h3 className="text-base font-bold text-black">Paramètres & Application Web (PWA)</h3>
+                  <h3 className="text-base font-bold text-black">{t.customerDashboard.settingsTitle}</h3>
                   <p className="text-xs text-slate-500">
-                    Configuration de votre compte et instructions d'installation de l'application web.
+                    {t.customerDashboard.settingsSubtitle}
                   </p>
                 </div>
 
                 <div className="p-5 rounded-2xl bg-neutral-50 border border-neutral-200 space-y-3 text-xs">
                   <div className="flex items-center gap-2 text-sm font-bold text-black">
-                    <Smartphone className="w-4 h-4 text-amber-600" />
-                    <span>Installer TAGTOP sur votre écran d'accueil (PWA)</span>
+                    <Smartphone className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>{t.customerDashboard.pwaTitle}</span>
                   </div>
                   <p className="text-slate-600 leading-relaxed">
-                    L'application TAGTOP fonctionne comme une Progressive Web App (PWA) sans téléchargement sur l'App Store ou Google Play.
+                    {t.customerDashboard.pwaDesc}
                   </p>
-                  <ul className="list-disc pl-5 space-y-1 text-slate-600">
-                    <li><strong>Sur iPhone (Safari) :</strong> Appuyez sur l'icône de partage puis « Sur l'écran d'accueil ».</li>
-                    <li><strong>Sur Android (Chrome) :</strong> Appuyez sur le menu (trois points) puis « Installer l'application ».</li>
+                  <ul className="list-disc pl-5 rtl:pl-0 rtl:pr-5 space-y-1 text-slate-600">
+                    <li><strong>{t.customerDashboard.pwaIphone}</strong></li>
+                    <li><strong>{t.customerDashboard.pwaAndroid}</strong></li>
                   </ul>
                 </div>
               </div>
