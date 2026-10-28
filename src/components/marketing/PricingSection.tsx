@@ -52,7 +52,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
 
               <div className="space-y-2 mb-6">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold text-black tabular-nums">249</span>
+                  <span className="text-4xl font-extrabold text-black tabular-nums">250</span>
                   <span className="text-base font-bold text-slate-700">{t.common.currency}</span>
                   <span className="text-xs text-slate-500">{t.pricing.starterBrandedTag}</span>
                 </div>

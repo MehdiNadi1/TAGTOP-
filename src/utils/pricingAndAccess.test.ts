@@ -4,6 +4,7 @@ import {
   calculateCardPrice,
   evaluatePublicAccess,
   generateVCardString,
+  normalizeWhatsAppNumber,
   STARTER_BRANDED_PRICE_MAD,
   STARTER_UNBRANDED_PRICE_MAD,
   RENEWAL_SIX_MONTHS_MAD,
@@ -12,22 +13,22 @@ import {
 } from './pricingAndAccess';
 import { BusinessProfile } from '../types';
 
-test('Starter branded card price is exactly 249 MAD and includes 6 months access', () => {
+test('Starter branded card price is exactly 250 MAD and includes 6 months access', () => {
   const result = calculateCardPrice('starter', 'branded', false);
   assert.equal(result.isQuoteRequired, false);
-  assert.equal(result.cardPriceMAD, 249);
-  assert.equal(result.totalMAD, 249);
+  assert.equal(result.cardPriceMAD, 250);
+  assert.equal(result.totalMAD, 250);
   assert.equal(result.woodStandPriceMAD, 0);
   assert.equal(result.subscriptionTimeline.stage1.priceMAD, 0);
-  assert.equal(result.subscriptionTimeline.stage2.priceMAD, 99);
-  assert.equal(result.subscriptionTimeline.stage3.priceMAD, 199);
+  assert.equal(result.subscriptionTimeline.stage2.priceMAD, 150);
+  assert.equal(result.subscriptionTimeline.stage3.priceMAD, 200);
 });
 
-test('Starter unbranded card price is exactly 349 MAD', () => {
+test('Starter unbranded card price is exactly 350 MAD', () => {
   const result = calculateCardPrice('starter', 'unbranded', false);
   assert.equal(result.isQuoteRequired, false);
-  assert.equal(result.cardPriceMAD, 349);
-  assert.equal(result.totalMAD, 349);
+  assert.equal(result.cardPriceMAD, 350);
+  assert.equal(result.totalMAD, 350);
 });
 
 test('Pro and Enterprise bundles strictly require a quote (no fabricated prices)', () => {
@@ -43,7 +44,7 @@ test('Pro and Enterprise bundles strictly require a quote (no fabricated prices)
 test('Wooden stand is excluded from totals when launch configuration is disabled', () => {
   const resultWithStand = calculateCardPrice('starter', 'branded', true, false, 30);
   assert.equal(resultWithStand.woodStandPriceMAD, 0);
-  assert.equal(resultWithStand.totalMAD, 249);
+  assert.equal(resultWithStand.totalMAD, 250);
 });
 
 test('Private preview cannot be viewed publicly or tapped via NFC', () => {
@@ -84,7 +85,7 @@ test('Profile past 14-day grace period is suspended with discreet unavailable st
   assert.equal(access.statusMessageKey, 'expired_suspended');
 });
 
-test('generateVCardString produces standard RFC 6350 fields without leaking private billing data', () => {
+test('generateVCardString produces standard RFC 6350 fields with UTF-8 charset without leaking private billing data', () => {
   const mockProfile: BusinessProfile = {
     id: 'prof-1',
     ownerId: 'u-1',
@@ -118,9 +119,17 @@ test('generateVCardString produces standard RFC 6350 fields without leaking priv
 
   const vcard = generateVCardString(mockProfile);
   assert.match(vcard, /^BEGIN:VCARD/);
-  assert.match(vcard, /FN:Yassine Bennani/);
-  assert.match(vcard, /ORG:Atelier Atlas Design/);
+  assert.match(vcard, /FN;CHARSET=UTF-8:Yassine Bennani/);
+  assert.match(vcard, /ORG;CHARSET=UTF-8:Atelier Atlas Design/);
   assert.match(vcard, /TEL;TYPE=CELL,VOICE:\+212 6 61 00 00 00/);
-  assert.match(vcard, /ADR;TYPE=WORK:;;Boulevard d’Anfa;Casablanca;;Maroc/);
+  assert.match(vcard, /ADR;CHARSET=UTF-8;TYPE=WORK:;;Boulevard d’Anfa;Casablanca;;Morocco/);
   assert.match(vcard, /END:VCARD$/);
+});
+
+test('normalizeWhatsAppNumber correctly normalizes domestic Moroccan and international formats', () => {
+  assert.equal(normalizeWhatsAppNumber('+212 6 61 24 88 90'), '212661248890');
+  assert.equal(normalizeWhatsAppNumber('0661248890'), '212661248890');
+  assert.equal(normalizeWhatsAppNumber('0712345678'), '212712345678');
+  assert.equal(normalizeWhatsAppNumber('661248890'), '212661248890');
+  assert.equal(normalizeWhatsAppNumber('00212661248890'), '212661248890');
 });

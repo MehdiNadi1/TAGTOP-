@@ -18,15 +18,28 @@ import {
 } from './types';
 import {
   initialProfiles,
-  getLocalizedProfiles,
   initialOrders,
-  initialLeads,
-  getLocalizedLeads,
   initialNfcRegistry,
   initialBankTransfers,
   initialSettings,
-  getLocalizedSettings,
 } from './data/mockData';
+import {
+  getStoredProfiles,
+  updateStoredProfile,
+  getStoredOrders,
+  addStoredOrder,
+  saveOrders,
+  getStoredLeads,
+  addStoredLead,
+  getStoredRegistry,
+  saveRegistry,
+  getStoredTransfers,
+  addStoredTransfer,
+  saveTransfers,
+  getStoredSettings,
+  saveSettings,
+  recordAnalyticsEvent,
+} from './services/storage';
 import { Header } from './components/common/Header';
 import { Footer } from './components/common/Footer';
 import { HeroInteractive } from './components/marketing/HeroInteractive';
@@ -63,19 +76,19 @@ export default function App() {
   // Active platform view: marketing website, customer portal, founder console, or public live profile
   const [currentView, setCurrentView] = useState<AppView>('marketing');
   const [currentSubPage, setCurrentSubPage] = useState<MarketingSubPage>('home');
+  const [activeProfileId, setActiveProfileId] = useState<string>('prof-casablanca');
 
-  // Application data state with reactive localization
-  const [profiles, setProfiles] = useState<BusinessProfile[]>(() => getLocalizedProfiles(currentLanguage));
-  const [orders, setOrders] = useState<NfcCardOrder[]>(initialOrders);
-  const [leads, setLeads] = useState<LeadSubmission[]>(() => getLocalizedLeads(currentLanguage));
-  const [registry, setRegistry] = useState<NfcCardRegistryItem[]>(initialNfcRegistry);
-  const [transfers, setTransfers] = useState<BankTransferRenewal[]>(initialBankTransfers);
-  const [settings, setSettings] = useState<SystemSettings>(() => getLocalizedSettings(currentLanguage));
+  // Application data state with persistent storage hydration
+  const [profiles, setProfiles] = useState<BusinessProfile[]>(() => getStoredProfiles(currentLanguage));
+  const [orders, setOrders] = useState<NfcCardOrder[]>(() => getStoredOrders());
+  const [leads, setLeads] = useState<LeadSubmission[]>(() => getStoredLeads());
+  const [registry, setRegistry] = useState<NfcCardRegistryItem[]>(() => getStoredRegistry());
+  const [transfers, setTransfers] = useState<BankTransferRenewal[]>(() => getStoredTransfers());
+  const [settings, setSettings] = useState<SystemSettings>(() => getStoredSettings());
 
+  // Reload profiles with language-aware merging when language changes without overwriting customer edits
   useEffect(() => {
-    setProfiles(getLocalizedProfiles(currentLanguage));
-    setSettings(getLocalizedSettings(currentLanguage));
-    setLeads(getLocalizedLeads(currentLanguage));
+    setProfiles(getStoredProfiles(currentLanguage));
   }, [currentLanguage]);
 
   // Quote modal state
@@ -88,11 +101,39 @@ export default function App() {
     document.documentElement.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
   }, [currentLanguage]);
 
-  // Handle URL hash changes for deep linking and client-side routing on GitHub Pages
+  // Handle URL hash changes for deep linking, NFC card taps (#c/tag-xxx), and profile viewing (#p/handle)
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace(/^#\/?/, '');
       if (!hash) return;
+
+      // 1. NFC Card direct tap resolution (#c/tag-casablanca-01 or #card/tag-xxx or #c/UID)
+      if (hash.startsWith('c/') || hash.startsWith('card/')) {
+        const tagUid = hash.replace(/^(c|card)\//, '');
+        const currentReg = getStoredRegistry();
+        const matched = currentReg.find(
+          (item) => item.uid.toLowerCase() === tagUid.toLowerCase() || item.serialNumber.toLowerCase() === tagUid.toLowerCase()
+        );
+        if (matched && matched.linkedProfileId) {
+          setActiveProfileId(matched.linkedProfileId);
+          recordAnalyticsEvent(matched.linkedProfileId, 'tap');
+          setCurrentView('public-profile');
+          return;
+        }
+      }
+
+      // 2. Direct public profile handle resolution (#p/handle or #p/id)
+      if (hash.startsWith('p/')) {
+        const handleOrId = hash.replace(/^p\//, '');
+        const currentProfs = getStoredProfiles();
+        const matched = currentProfs.find((p) => p.handle === handleOrId || p.id === handleOrId);
+        if (matched) {
+          setActiveProfileId(matched.id);
+          recordAnalyticsEvent(matched.id, 'tap');
+          setCurrentView('public-profile');
+          return;
+        }
+      }
 
       if (hash === 'customer-dashboard' || hash === 'founder-dashboard' || hash === 'public-profile') {
         setCurrentView(hash as AppView);
@@ -125,133 +166,172 @@ export default function App() {
 
   // Order Handlers
   const handleOrderCreated = (newOrder: NfcCardOrder) => {
-    setOrders((prev) => [newOrder, ...prev]);
+    const updatedOrders = addStoredOrder(newOrder);
+    setOrders(updatedOrders);
 
     // If profile was in private preview, mark as order_pending
-    setProfiles((prev) =>
-      prev.map((p) => {
+    setProfiles((prev) => {
+      const next = prev.map((p) => {
         if (p.id === newOrder.profileId && p.accessState === 'private_preview') {
-          return { ...p, accessState: 'order_pending' };
+          return { ...p, accessState: 'order_pending' as const };
         }
         return p;
-      })
-    );
+      });
+      // Update in storage
+      const target = next.find((p) => p.id === newOrder.profileId);
+      if (target) updateStoredProfile(target);
+      return next;
+    });
   };
 
   const handleUpdateProfile = (updated: BusinessProfile) => {
-    setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+    const nextProfiles = updateStoredProfile(updated);
+    setProfiles(nextProfiles);
   };
 
   const handleApproveProof = (orderId: string) => {
-    setOrders((prev) =>
-      prev.map((o) =>
+    setOrders((prev) => {
+      const next = prev.map((o) =>
         o.id === orderId
-          ? { ...o, proofApproved: true, orderStatus: 'customer_approved' }
+          ? { ...o, proofApproved: true, orderStatus: 'customer_approved' as const }
           : o
-      )
-    );
+      );
+      saveOrders(next);
+      return next;
+    });
   };
 
   const handleRequestProofChange = (orderId: string, reason: string) => {
-    setOrders((prev) =>
-      prev.map((o) =>
+    setOrders((prev) => {
+      const next = prev.map((o) =>
         o.id === orderId
           ? {
               ...o,
               proofApproved: false,
               proofRejectionReason: reason,
-              orderStatus: 'artwork_review',
+              orderStatus: 'artwork_review' as const,
             }
           : o
-      )
-    );
+      );
+      saveOrders(next);
+      return next;
+    });
     alert(translations[currentLanguage].app.proofModificationSentAlert);
   };
 
   const handleSubmitRenewalTransfer = (transfer: BankTransferRenewal) => {
-    setTransfers((prev) => [transfer, ...prev]);
+    const updated = addStoredTransfer(transfer);
+    setTransfers(updated);
   };
 
   const handleFounderApproveTransfer = (transferId: string, founderNotes: string) => {
     const targetTransfer = transfers.find((t) => t.id === transferId);
     if (!targetTransfer) return;
 
-    setTransfers((prev) =>
-      prev.map((t) =>
-        t.id === transferId
-          ? { ...t, status: 'approved', founderNotes, verifiedAt: new Date().toISOString() }
-          : t
-      )
+    const nextTransfers = transfers.map((t) =>
+      t.id === transferId
+        ? { ...t, status: 'approved' as const, founderNotes, verifiedAt: new Date().toISOString() }
+        : t
     );
+    setTransfers(nextTransfers);
+    saveTransfers(nextTransfers);
 
     // Extend access date for the associated profile
-    setProfiles((prev) =>
-      prev.map((p) => {
+    setProfiles((prev) => {
+      const next = prev.map((p) => {
         if (p.id === targetTransfer.profileId) {
           const currentExpiry = new Date(p.expiryDate);
-          const addDays = targetTransfer.amountMAD === 99 ? 180 : 365;
+          const addDays = targetTransfer.amountMAD === 150 ? 180 : 365;
           currentExpiry.setDate(currentExpiry.getDate() + addDays);
-          return {
+          const updatedProfile = {
             ...p,
-            accessState: 'active',
+            accessState: 'active' as const,
             expiryDate: currentExpiry.toISOString().split('T')[0],
           };
+          updateStoredProfile(updatedProfile);
+          return updatedProfile;
         }
         return p;
-      })
-    );
+      });
+      return next;
+    });
   };
 
   const handleFounderRejectTransfer = (transferId: string, reason: string) => {
-    setTransfers((prev) =>
-      prev.map((t) =>
-        t.id === transferId
-          ? { ...t, status: 'rejected', founderNotes: reason }
-          : t
-      )
+    const next = transfers.map((t) =>
+      t.id === transferId
+        ? { ...t, status: 'rejected' as const, founderNotes: reason }
+        : t
     );
+    setTransfers(next);
+    saveTransfers(next);
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: any) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, orderStatus: newStatus } : o))
-    );
+    const nextOrders = orders.map((o) => (o.id === orderId ? { ...o, orderStatus: newStatus } : o));
+    setOrders(nextOrders);
+    saveOrders(nextOrders);
 
     // If delivered and paid, unlock profile to active
     if (newStatus === 'delivered') {
       const order = orders.find((o) => o.id === orderId);
       if (order) {
-        setProfiles((prev) =>
-          prev.map((p) =>
-            p.id === order.profileId
-              ? { ...p, accessState: 'active', linkedCardCount: (p.linkedCardCount || 0) + 1 }
-              : p
-          )
-        );
+        setProfiles((prev) => {
+          const next = prev.map((p) => {
+            if (p.id === order.profileId) {
+              const updated = {
+                ...p,
+                accessState: 'active' as const,
+                linkedCardCount: (p.linkedCardCount || 0) + 1,
+              };
+              updateStoredProfile(updated);
+              return updated;
+            }
+            return p;
+          });
+          return next;
+        });
       }
     }
   };
 
   const handleUpdatePaymentStatus = (orderId: string, paymentStatus: any) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, paymentStatus } : o))
-    );
+    const nextOrders = orders.map((o) => (o.id === orderId ? { ...o, paymentStatus } : o));
+    setOrders(nextOrders);
+    saveOrders(nextOrders);
   };
 
   const handleUpdateProfileAccess = (profileId: string, newState: any) => {
-    setProfiles((prev) =>
-      prev.map((p) => (p.id === profileId ? { ...p, accessState: newState } : p))
-    );
+    setProfiles((prev) => {
+      const next = prev.map((p) => {
+        if (p.id === profileId) {
+          const updated = { ...p, accessState: newState };
+          updateStoredProfile(updated);
+          return updated;
+        }
+        return p;
+      });
+      return next;
+    });
+  };
+
+  const handleUpdateSettings = (newSettings: SystemSettings) => {
+    setSettings(newSettings);
+    saveSettings(newSettings);
   };
 
   const handleLeadSubmitted = (lead: LeadSubmission) => {
-    setLeads((prev) => [lead, ...prev]);
+    const updated = addStoredLead(lead);
+    setLeads(updated);
   };
 
   const openQuoteModalForTier = (tier: PackageTier) => {
     setQuoteTier(tier);
     setQuoteModalOpen(true);
   };
+
+  const resolvedPublicProfile =
+    profiles.find((p) => p.id === activeProfileId) || profiles[0] || initialProfiles[0];
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-amber-300 selection:text-black">
@@ -301,7 +381,7 @@ export default function App() {
           onApproveTransfer={handleFounderApproveTransfer}
           onRejectTransfer={handleFounderRejectTransfer}
           onUpdateProfileAccess={handleUpdateProfileAccess}
-          onUpdateSettings={setSettings}
+          onUpdateSettings={handleUpdateSettings}
           onViewChange={setCurrentView}
         />
       )}
@@ -317,11 +397,11 @@ export default function App() {
               ← {translations[currentLanguage].app.backToSite}
             </button>
             <span className="text-xs font-mono text-slate-500">
-              {translations[currentLanguage].app.livePreviewOf} {profiles[0].displayName}
+              {translations[currentLanguage].app.livePreviewOf} {resolvedPublicProfile.displayName}
             </span>
           </div>
           <PublicProfileView
-            profile={profiles[0]}
+            profile={resolvedPublicProfile}
             currentLanguage={currentLanguage}
             onLeadSubmitted={handleLeadSubmitted}
           />

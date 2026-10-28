@@ -643,7 +643,7 @@ export const initialOrders: NfcCardOrder[] = [
     cardColor: 'black',
     cardBranding: 'branded',
     cardQuantity: 1,
-    priceMAD: 249,
+    priceMAD: 250,
     woodenStandSelected: false,
     woodenStandPriceMAD: 0,
     profileId: 'prof-casablanca',
@@ -666,7 +666,7 @@ export const initialOrders: NfcCardOrder[] = [
     cardColor: 'white',
     cardBranding: 'unbranded',
     cardQuantity: 1,
-    priceMAD: 349,
+    priceMAD: 350,
     woodenStandSelected: false,
     woodenStandPriceMAD: 0,
     profileId: 'prof-rabat',
@@ -876,8 +876,8 @@ export const initialBankTransfers: BankTransferRenewal[] = [
     profileName: 'Dr. Kenza El Amrani - Cabinet Dentaire',
     customerName: 'Dr. Kenza El Amrani',
     customerPhone: '+212 6 62 11 22 33',
-    amountMAD: 99,
-    periodDescription: 'Renouvellement 6 mois supplémentaires (99 MAD)',
+    amountMAD: 150,
+    periodDescription: 'Renouvellement 6 mois supplémentaires (150 MAD)',
     receiptNumber: 'CIH-VIR-20261025-4819',
     submittedAt: '2026-10-25T15:00:00Z',
     status: 'pending',
@@ -889,8 +889,8 @@ export const initialBankTransfers: BankTransferRenewal[] = [
     profileName: 'Yassine Bennani - Atelier Atlas Design',
     customerName: 'Yassine Bennani',
     customerPhone: '+212 6 61 24 88 90',
-    amountMAD: 99,
-    periodDescription: 'Renouvellement 6 mois supplémentaires (99 MAD)',
+    amountMAD: 150,
+    periodDescription: 'Renouvellement 6 mois supplémentaires (150 MAD)',
     receiptNumber: 'AWB-VIR-20260415-1092',
     submittedAt: '2026-04-15T10:00:00Z',
     status: 'approved',
@@ -900,10 +900,10 @@ export const initialBankTransfers: BankTransferRenewal[] = [
 ];
 
 export const initialSettings: SystemSettings = {
-  starterBrandedPriceMAD: 249,
-  starterUnbrandedPriceMAD: 349,
-  renewalSixMonthsMAD: 99,
-  renewalAnnualMAD: 199,
+  starterBrandedPriceMAD: 250,
+  starterUnbrandedPriceMAD: 350,
+  renewalSixMonthsMAD: 150,
+  renewalAnnualMAD: 200,
   woodenStandEnabled: false,
   woodenStandPriceMAD: 0,
   supportWhatsAppNumber: '+212 6 00 00 00 00',
@@ -917,7 +917,7 @@ export const getLocalizedSettings = (lang: Language): SystemSettings => {
       lang === 'ar'
         ? 'البنك: CIH Bank المغرب\nالحساب البنكي (RIB): 230 780 0000000000000000 12\nصاحب الحساب: TAGTOP SARL AU\nالسبب: كتابة اسم ملفك أو رقم الطلب'
         : lang === 'en'
-        ? 'Bank: CIH Bank Morocco\nRIB: 230 780 0000000000000000 12\nAccount Holder: TAGTOP SARL AU\nReference: State your profile name or order ID'
-        : initialSettings.bankAccountDetails,
+          ? 'Bank: CIH Bank Morocco\nRIB: 230 780 0000000000000000 12\nAccount Holder: TAGTOP SARL AU\nReference: State your profile name or order ID'
+          : initialSettings.bankAccountDetails,
   };
 };

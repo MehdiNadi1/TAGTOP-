@@ -18,7 +18,17 @@ import {
   AlertTriangle,
   Settings,
   Cpu,
+  Lock,
+  LogOut,
+  Download,
+  Upload,
 } from 'lucide-react';
+import {
+  getStoredAdminSession,
+  saveAdminSession,
+  exportDataSnapshot,
+  importDataSnapshot,
+} from '../../services/storage';
 
 interface FounderDashboardProps {
   currentLanguage: Language;
@@ -54,6 +64,14 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
   const t = translations[currentLanguage];
   const [activeTab, setActiveTab] = useState<FounderTab>('overview');
 
+  // Admin authentication state (Session-gated)
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    return getStoredAdminSession().isAuthenticated;
+  });
+  const [adminPasscode, setAdminPasscode] = useState('');
+  const [authError, setAuthError] = useState(false);
+  const [snapshotMsg, setSnapshotMsg] = useState('');
+
   // Transfer action modal state
   const [_transferNotes, setTransferNotes] = useState<string>('');
   const [_selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
@@ -66,12 +84,153 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
   const pendingTransfersCount = transfers.filter((t) => t.status === 'pending').length;
   const graceProfilesCount = profiles.filter((p) => p.accessState === 'grace_period').length;
 
+  const handleAdminLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPasscode === 'tagtop-founder-2026' || adminPasscode === 'admin2026') {
+      saveAdminSession({ isAuthenticated: true, authenticatedAt: new Date().toISOString() });
+      setIsAdminAuthenticated(true);
+      setAuthError(false);
+    } else {
+      setAuthError(true);
+    }
+  };
+
+  const handleAdminLogout = () => {
+    saveAdminSession({ isAuthenticated: false });
+    setIsAdminAuthenticated(false);
+    onViewChange('marketing');
+  };
+
+  const handleExportSnapshot = () => {
+    const json = exportDataSnapshot();
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `tagtop_backup_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setSnapshotMsg('Sauvegarde exportée avec succès !');
+    setTimeout(() => setSnapshotMsg(''), 3000);
+  };
+
+  const handleImportSnapshot = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (text && importDataSnapshot(text)) {
+          setSnapshotMsg('Données restaurées avec succès ! Rechargement...');
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          setSnapshotMsg('Format de sauvegarde invalide.');
+          setTimeout(() => setSnapshotMsg(''), 3000);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     onUpdateSettings(settingsForm);
     setSettingsSavedToast(true);
     setTimeout(() => setSettingsSavedToast(false), 2500);
   };
+
+  // If not authenticated, render the Secure Admin Challenge Screen
+  if (!isAdminAuthenticated) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center py-12 px-4">
+        <div className="max-w-md w-full bg-neutral-900 rounded-3xl p-8 border border-neutral-800 shadow-2xl space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 bg-amber-400 text-black rounded-2xl mx-auto flex items-center justify-center font-bold shadow-md">
+              <Lock className="w-7 h-7" />
+            </div>
+            <h1 className="text-xl font-black text-white">
+              {t.dashboard.founderTitle}
+            </h1>
+            <p className="text-xs text-neutral-400">
+              {currentLanguage === 'ar'
+                ? 'منطقة محمية - يتطلب تصريح الدخول'
+                : currentLanguage === 'en'
+                ? 'Restricted Founder Console - Passcode Required'
+                : 'Console d’Administration — Accès Restreint'}
+            </p>
+          </div>
+
+          {/* Infrastructure Boundary Notice */}
+          <div className="p-4 bg-amber-400/10 border border-amber-400/30 rounded-2xl text-xs space-y-2 text-amber-200">
+            <div className="flex items-center gap-2 font-bold text-amber-400">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>
+                {currentLanguage === 'ar'
+                  ? 'ملاحظة الأمان (استضافة GitHub Pages)'
+                  : currentLanguage === 'en'
+                  ? 'Security Sandbox (GitHub Pages Hosting)'
+                  : 'Sécurité & Hébergement Statique'}
+              </span>
+            </div>
+            <p className="text-[11px] leading-relaxed text-neutral-300">
+              {currentLanguage === 'ar'
+                ? 'تعمل المنصة حالياً عبر استضافة ثابتة. العمليات الحساسة محصنة في بيئة التخزين المحلية. يتطلب النشر النهائي في الإنتاج خادماً خلفياً للتحقق من المدفوعات وتشفير الرقاقات.'
+                : currentLanguage === 'en'
+                ? 'This portal is hosted on static infrastructure. Sensitive admin modifications run in a sandboxed local persistence store. Production database and server verification are required for live roll-out.'
+                : 'Cette instance s’exécute sur hébergement statique. Les données et opérations sont sécurisées dans le stockage local persistant.'}
+            </p>
+          </div>
+
+          <form onSubmit={handleAdminLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-300 mb-1">
+                {currentLanguage === 'ar' ? 'رمز مرور المؤسس' : currentLanguage === 'en' ? 'Founder Passcode' : 'Code d’accès fondateur'}
+              </label>
+              <input
+                type="password"
+                required
+                value={adminPasscode}
+                onChange={(e) => {
+                  setAdminPasscode(e.target.value);
+                  if (authError) setAuthError(false);
+                }}
+                placeholder="••••••••••••"
+                className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-400 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
+              />
+              {authError && (
+                <p className="text-xs text-red-400 mt-1.5 font-medium">
+                  {currentLanguage === 'ar'
+                    ? 'رمز المرور غير صحيح'
+                    : currentLanguage === 'en'
+                    ? 'Invalid security passcode'
+                    : 'Code d’accès incorrect.'}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-amber-400 hover:bg-amber-500 text-black font-extrabold py-3 rounded-xl transition-all shadow-md text-sm"
+            >
+              {currentLanguage === 'ar' ? 'دخول لوحة التحكم' : currentLanguage === 'en' ? 'Unlock Founder Console' : 'Déverrouiller la Console'}
+            </button>
+          </form>
+
+          <div className="pt-2 text-center">
+            <button
+              type="button"
+              onClick={() => onViewChange('marketing')}
+              className="text-xs text-neutral-500 hover:text-white transition-colors"
+            >
+              ← {t.app.backToSite}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-900 text-white flex flex-col">
@@ -89,6 +248,9 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                   {t.founderDashboard.adminBadge}
                 </span>
                 <span className="text-xs text-neutral-400">{t.founderDashboard.founderTitle}</span>
+                <span className="text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded">
+                  Session Active
+                </span>
               </div>
               <h1 className="text-2xl font-black text-white mt-0.5">
                 {t.dashboard.founderTitle}
@@ -96,7 +258,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => onViewChange('marketing')}
@@ -107,9 +269,17 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
             <button
               type="button"
               onClick={() => onViewChange('customer-dashboard')}
-              className="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-black text-xs font-bold rounded-xl transition-colors"
+              className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold rounded-xl transition-colors"
             >
               {t.founderDashboard.viewCustomerPortal}
+            </button>
+            <button
+              type="button"
+              onClick={handleAdminLogout}
+              className="px-3.5 py-2 bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Déconnexion</span>
             </button>
           </div>
         </div>
@@ -600,7 +770,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                         value={settingsForm.starterBrandedPriceMAD}
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-white opacity-80"
                       />
-                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt249}</span>
+                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt250}</span>
                     </div>
 
                     <div>
@@ -613,7 +783,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                         value={settingsForm.starterUnbrandedPriceMAD}
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-white opacity-80"
                       />
-                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt349}</span>
+                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt350}</span>
                     </div>
                   </div>
 
@@ -628,7 +798,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                         value={settingsForm.renewalSixMonthsMAD}
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-white opacity-80"
                       />
-                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt99}</span>
+                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt150}</span>
                     </div>
 
                     <div>
@@ -641,7 +811,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                         value={settingsForm.renewalAnnualMAD}
                         className="w-full bg-neutral-900 border border-neutral-800 rounded-xl p-2.5 text-white opacity-80"
                       />
-                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt199}</span>
+                      <span className="text-[10px] text-neutral-500">{t.founderDashboard.fixedAt200}</span>
                     </div>
                   </div>
 
@@ -683,6 +853,47 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                     {t.founderDashboard.updateSettingsBtn}
                   </button>
                 </form>
+
+                {/* Database Backup & Migration Section */}
+                <div className="pt-6 border-t border-neutral-800 space-y-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      <Download className="w-4 h-4 text-amber-400" />
+                      <span>Sauvegarde & Migration Base de Données (Backend Ready)</span>
+                    </h4>
+                    <p className="text-xs text-neutral-400 mt-1 leading-relaxed">
+                      Téléchargez un instantané JSON complet de l'ensemble des données (comptes, profils, commandes, cartes NFC, virements et paramètres) pour archivage sécurisé ou importation dans une base PostgreSQL/Supabase.
+                    </p>
+                  </div>
+
+                  {snapshotMsg && (
+                    <div className="p-3 bg-amber-400/20 border border-amber-400/40 text-amber-300 text-xs rounded-xl font-medium">
+                      {snapshotMsg}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleExportSnapshot}
+                      className="px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs rounded-xl border border-neutral-700 flex items-center gap-2 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Exporter instantané JSON</span>
+                    </button>
+
+                    <label className="cursor-pointer px-4 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold text-xs rounded-xl border border-neutral-700 flex items-center gap-2 transition-colors">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Restaurer depuis fichier JSON</span>
+                      <input
+                        type="file"
+                        accept=".json"
+                        onChange={handleImportSnapshot}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
             )}
 

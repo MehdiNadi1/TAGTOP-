@@ -10,6 +10,7 @@ import {
 import { translations } from '../../i18n/translations';
 import { NfcCard3D } from '../cards/NfcCard3D';
 import { calculateCardPrice } from '../../utils/pricingAndAccess';
+import { saveCustomerSession } from '../../services/storage';
 import {
   CheckCircle2,
   Upload,
@@ -47,9 +48,10 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
   // Delivery Form
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
-  const [customerEmail] = useState<string>('contact@tagtop.ma');
+  const [customerEmail, setCustomerEmail] = useState<string>('');
   const [city, setCity] = useState<string>('');
   const [address, setAddress] = useState<string>('');
+  const [formError, setFormError] = useState<string>('');
 
   const [orderSubmitted, setOrderSubmitted] = useState<boolean>(false);
   const [submittedOrderId, setSubmittedOrderId] = useState<string>('');
@@ -70,14 +72,20 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
 
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!customerName.trim() || !customerPhone.trim() || !customerEmail.trim() || !city.trim() || !address.trim()) {
+      setFormError('Veuillez remplir tous les champs de livraison obligatoires.');
+      return;
+    }
+    setFormError('');
+
     const newOrderId = `ord-tag-${Math.floor(1000 + Math.random() * 9000)}`;
     const newOrder: NfcCardOrder = {
       id: newOrderId,
-      customerName,
-      customerPhone,
-      customerEmail,
-      city,
-      address,
+      customerName: customerName.trim(),
+      customerPhone: customerPhone.trim(),
+      customerEmail: customerEmail.trim().toLowerCase(),
+      city: city.trim(),
+      address: address.trim(),
       packageTier,
       cardColor,
       cardBranding,
@@ -94,6 +102,12 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
       createdAt: new Date().toISOString(),
       proofApproved: false,
     };
+
+    saveCustomerSession({
+      email: customerEmail.trim().toLowerCase(),
+      name: customerName.trim(),
+      loginAt: new Date().toISOString(),
+    });
 
     onOrderCreated(newOrder);
     setSubmittedOrderId(newOrderId);
@@ -296,7 +310,7 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
                   >
                     <div className="flex justify-between items-center">
                       <span>{t.configurator.brandedOption}</span>
-                      <span className="text-amber-700 font-bold">249 {t.common.currency}</span>
+                      <span className="text-amber-700 font-bold">250 {t.common.currency}</span>
                     </div>
                   </button>
 
@@ -311,7 +325,7 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
                   >
                     <div className="flex justify-between items-center">
                       <span>{t.configurator.unbrandedOption}</span>
-                      <span className="text-slate-900 font-bold">349 {t.common.currency}</span>
+                      <span className="text-slate-900 font-bold">350 {t.common.currency}</span>
                     </div>
                   </button>
                 </div>
@@ -421,6 +435,20 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
 
                 <div>
                   <label className="block text-slate-700 font-semibold mb-1">
+                    {t.profile.emailField} *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm dir-ltr"
+                    placeholder="contact@entreprise.ma"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">
                     {t.configurator.cityLabel}
                   </label>
                   <input
@@ -433,7 +461,7 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
                   />
                 </div>
 
-                <div>
+                <div className="sm:col-span-2">
                   <label className="block text-slate-700 font-semibold mb-1">
                     {t.configurator.addressLabel}
                   </label>
@@ -447,6 +475,12 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
                   />
                 </div>
               </div>
+
+              {formError && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl font-semibold">
+                  {formError}
+                </div>
+              )}
             </div>
 
             {/* Proof Notice & Submission */}

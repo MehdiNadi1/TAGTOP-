@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BusinessProfile, Language, LeadSubmission } from '../../types';
 import { translations } from '../../i18n/translations';
-import { downloadVCard } from '../../utils/pricingAndAccess';
+import { downloadVCard, normalizeWhatsAppNumber } from '../../utils/pricingAndAccess';
+import { recordAnalyticsEvent } from '../../services/storage';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import {
   Phone,
@@ -33,7 +34,15 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
 }) => {
   const t = translations[currentLanguage];
 
-  // Template switch for prototype exploration
+  const [isDevMode, setIsDevMode] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isDev = new URLSearchParams(window.location.search).has('dev') || localStorage.getItem('tagtop_dev') === 'true';
+      setIsDevMode(isDev);
+    }
+  }, []);
+
+  // Template styling
   const [activeTemplate, setActiveTemplate] = useState<'executive' | 'creative' | 'artisan'>(
     profile.templateId
   );
@@ -44,6 +53,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
   // Lead Form State
   const [leadName, setLeadName] = useState('');
   const [leadPhone, setLeadPhone] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [leadEmail, setLeadEmail] = useState('');
   const [leadCompany, setLeadCompany] = useState('');
   const [leadNotes, setLeadNotes] = useState('');
@@ -51,9 +61,10 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
   const [leadSubmittedSuccess, setLeadSubmittedSuccess] = useState(false);
   const [sharedToast, setSharedToast] = useState(false);
 
-  // Handle Save Contact (vCard RFC 6350)
+  // Handle Save Contact (vCard RFC 6350 with UTF-8 support)
   const handleSaveContact = () => {
     downloadVCard(profile);
+    recordAnalyticsEvent(profile.id, 'vcard');
   };
 
   const handleShare = () => {
@@ -62,7 +73,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
         title: profile.displayName,
         text: `${profile.displayName} - ${profile.company}`,
         url: window.location.href,
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       navigator.clipboard.writeText(window.location.href);
       setSharedToast(true);
@@ -70,19 +81,36 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
     }
   };
 
+  const handleWhatsAppClick = () => {
+    recordAnalyticsEvent(profile.id, 'whatsapp');
+  };
+
   const handleSubmitLead = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!leadName || !leadPhone) return;
+    if (!leadName.trim()) return;
+
+    const digits = leadPhone.replace(/\D/g, '');
+    if (digits.length < 8) {
+      setPhoneError(
+        currentLanguage === 'ar'
+          ? 'يرجى إدخال رقم هاتف صالح (8 أرقام على الأقل)'
+          : currentLanguage === 'en'
+          ? 'Please enter a valid phone number (at least 8 digits)'
+          : 'Veuillez saisir un numéro de téléphone valide (au moins 8 chiffres)'
+      );
+      return;
+    }
+    setPhoneError('');
 
     const newLead: LeadSubmission = {
       id: `lead-${Date.now()}`,
       profileId: profile.id,
       profileName: profile.company || profile.displayName,
-      name: leadName,
-      phone: leadPhone,
-      email: leadEmail,
-      company: leadCompany,
-      notes: leadNotes,
+      name: leadName.trim(),
+      phone: leadPhone.trim(),
+      email: leadEmail.trim(),
+      company: leadCompany.trim(),
+      notes: leadNotes.trim(),
       submittedAt: new Date().toISOString(),
       promotionalConsent: promoConsent,
     };
@@ -101,18 +129,20 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
   if (isSimulatingExpired) {
     return (
       <div className="min-h-screen bg-neutral-100 flex flex-col justify-between py-12 px-4">
-        
-        {/* Prototype Bar to toggle back */}
-        <div className="max-w-md mx-auto w-full mb-6 p-2 bg-neutral-900 text-white rounded-xl text-xs flex items-center justify-between">
-          <span className="font-mono text-amber-400">{t.profile.expiredModeBadge}</span>
-          <button
-            type="button"
-            onClick={() => setIsSimulatingExpired(false)}
-            className="px-2.5 py-1 bg-amber-400 text-black font-semibold rounded"
-          >
-            {t.profile.viewActiveProfileBtn}
-          </button>
-        </div>
+
+        {/* Prototype Bar to toggle back — Only visible in dev mode */}
+        {isDevMode && (
+          <div className="max-w-md mx-auto w-full mb-6 p-2 bg-neutral-900 text-white rounded-xl text-xs flex items-center justify-between">
+            <span className="font-mono text-amber-400">{t.profile.expiredModeBadge}</span>
+            <button
+              type="button"
+              onClick={() => setIsSimulatingExpired(false)}
+              className="px-2.5 py-1 bg-amber-400 text-black font-semibold rounded"
+            >
+              {t.profile.viewActiveProfileBtn}
+            </button>
+          </div>
+        )}
 
         <div className="max-w-md mx-auto w-full bg-white rounded-3xl p-8 border border-neutral-200 shadow-lg text-center space-y-6 my-auto">
           <div className="w-16 h-16 bg-neutral-100 text-neutral-400 rounded-2xl mx-auto flex items-center justify-center">
@@ -164,42 +194,46 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
     },
   }[activeTemplate];
 
+  const normalizedWhatsAppDigits = normalizeWhatsAppNumber(profile.whatsapp);
+
   return (
     <div className="min-h-screen bg-neutral-100 py-6 px-3 sm:px-6">
-      
-      {/* Prototype Testing Bar */}
-      <div className="max-w-md mx-auto mb-4 bg-white rounded-2xl p-2.5 border border-neutral-200 shadow-xs flex items-center justify-between flex-wrap gap-2 text-xs">
-        <div className="flex items-center gap-1.5 font-semibold text-neutral-800">
-          <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-          <span>{t.profile.styleLabel}</span>
-          {(['executive', 'creative', 'artisan'] as const).map((tmpl) => (
-            <button
-              key={tmpl}
-              type="button"
-              onClick={() => setActiveTemplate(tmpl)}
-              className={`px-2 py-0.5 rounded ${
-                activeTemplate === tmpl
-                  ? 'bg-neutral-900 text-white font-bold'
-                  : 'text-neutral-600 hover:bg-neutral-100'
-              }`}
-            >
-              {tmpl === 'executive'
-                ? t.common.templateExecutive
-                : tmpl === 'creative'
-                ? t.common.templateCreative
-                : t.common.templateArtisan}
-            </button>
-          ))}
-        </div>
 
-        <button
-          type="button"
-          onClick={() => setIsSimulatingExpired(true)}
-          className="text-[11px] text-red-600 hover:text-red-800 font-semibold underline decoration-dotted"
-        >
-          {t.profile.testExpiredBtn}
-        </button>
-      </div>
+      {/* Dev Mode Testing Bar — Only rendered when ?dev=true */}
+      {isDevMode && (
+        <div className="max-w-md mx-auto mb-4 bg-white rounded-2xl p-2.5 border border-neutral-200 shadow-xs flex items-center justify-between flex-wrap gap-2 text-xs">
+          <div className="flex items-center gap-1.5 font-semibold text-neutral-800">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span>{t.profile.styleLabel}</span>
+            {(['executive', 'creative', 'artisan'] as const).map((tmpl) => (
+              <button
+                key={tmpl}
+                type="button"
+                onClick={() => setActiveTemplate(tmpl)}
+                className={`px-2 py-0.5 rounded ${
+                  activeTemplate === tmpl
+                    ? 'bg-neutral-900 text-white font-bold'
+                    : 'text-neutral-600 hover:bg-neutral-100'
+                }`}
+              >
+                {tmpl === 'executive'
+                  ? t.common.templateExecutive
+                  : tmpl === 'creative'
+                  ? t.common.templateCreative
+                  : t.common.templateArtisan}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsSimulatingExpired(true)}
+            className="text-[11px] text-red-600 hover:text-red-800 font-semibold underline decoration-dotted"
+          >
+            {t.profile.testExpiredBtn}
+          </button>
+        </div>
+      )}
 
       {/* If Profile in Grace Period, display clear warning while retaining active access */}
       {profile.accessState === 'grace_period' && (
@@ -213,10 +247,10 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
 
       {/* Mobile Frame Container (Target ~390px baseline) */}
       <div className="max-w-md mx-auto bg-white rounded-[32px] overflow-hidden shadow-2xl border border-neutral-200/90 flex flex-col">
-        
+
         {/* Cover & Profile Header */}
         <div className={`p-6 pt-10 text-center relative ${templateConfig.headerBg}`}>
-          
+
           {/* Avatar / Monogram */}
           <div className="relative inline-block mb-3">
             <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 to-amber-200 text-neutral-950 font-black text-2xl flex items-center justify-center mx-auto shadow-lg border-2 border-white/20">
@@ -267,9 +301,10 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
             </button>
 
             <a
-              href={`https://wa.me/${profile.whatsapp.replace(/\D/g, '')}`}
+              href={`https://wa.me/${normalizedWhatsAppDigits}`}
               target="_blank"
               rel="noreferrer"
+              onClick={handleWhatsAppClick}
               className="py-3 px-4 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-[0.98]"
             >
               <MessageSquare className="w-4 h-4 shrink-0" />
@@ -326,7 +361,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
 
         {/* Profile Content Body */}
         <div className="p-5 space-y-6 bg-white">
-          
+
           {/* Services & Offerings Showcase */}
           {profile.products.length > 0 && (
             <div className="space-y-3">
@@ -427,10 +462,18 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                     type="tel"
                     required
                     value={leadPhone}
-                    onChange={(e) => setLeadPhone(e.target.value)}
+                    onChange={(e) => {
+                      setLeadPhone(e.target.value);
+                      if (phoneError) setPhoneError('');
+                    }}
                     placeholder="+212 6..."
                     className="w-full bg-white border border-neutral-300 rounded-lg px-3 py-2 text-xs dir-ltr"
                   />
+                  {phoneError && (
+                    <p className="text-[11px] text-red-600 font-semibold mt-1">
+                      {phoneError}
+                    </p>
+                  )}
                 </div>
 
                 <div>

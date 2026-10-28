@@ -118,15 +118,6 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button
                   type="button"
-                  onClick={() => onViewChange('founder-dashboard')}
-                  className="hover:text-black transition-colors text-left rtl:text-right"
-                >
-                  {t.common.founderAdmin}
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
                   onClick={() => {
                     onViewChange('marketing');
                     onNavigateSubPage('configurator');
@@ -139,7 +130,10 @@ export const Footer: React.FC<FooterProps> = ({
               <li>
                 <button
                   type="button"
-                  onClick={() => onViewChange('public-profile')}
+                  onClick={() => {
+                    onViewChange('marketing');
+                    onNavigateSubPage('demo');
+                  }}
                   className="hover:text-black transition-colors text-left rtl:text-right"
                 >
                   {t.footer.liveDemo}
@@ -148,7 +142,7 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          {/* Col 4: Paiement & Sécurité */}
+          {/* Col 4: Trust & Payment Badges */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-black uppercase tracking-wider">
               {t.footer.paymentTitle}
@@ -156,38 +150,30 @@ export const Footer: React.FC<FooterProps> = ({
             <p className="text-xs text-slate-500 leading-relaxed">
               {t.footer.paymentDesc}
             </p>
-            <div className="pt-2 flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-mono bg-neutral-100 text-slate-700 px-2 py-1 rounded">
-                {t.footer.cashOnDelivery}
-              </span>
-              <span className="text-[10px] font-mono bg-neutral-100 text-slate-700 px-2 py-1 rounded">
-                {t.footer.cihBank}
-              </span>
-              <span className="text-[10px] font-mono bg-neutral-100 text-slate-700 px-2 py-1 rounded">
-                {t.footer.ntagCertified}
-              </span>
+            <div className="space-y-1 text-xs text-slate-500 pt-1">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>{t.footer.cashOnDelivery}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>{t.footer.cihBank}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>{t.footer.ntagCertified}</span>
+              </div>
             </div>
           </div>
 
         </div>
 
-        {/* Bottom bar */}
-        <div className="pt-8 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
-          <div>
-            © {new Date().getFullYear()} TAGTOP SARL. {t.footer.copyright}
-          </div>
-
-          <div className="flex items-center gap-6">
+        {/* Bottom Bar: Copyright & Legal */}
+        <div className="pt-8 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-4">
+          <p>{t.footer.copyright}</p>
+          <div className="flex items-center gap-4">
             <button
-              onClick={() => {
-                onViewChange('marketing');
-                onNavigateSubPage('privacy');
-              }}
-              className="hover:text-black transition-colors"
-            >
-              {t.footer.privacy}
-            </button>
-            <button
+              type="button"
               onClick={() => {
                 onViewChange('marketing');
                 onNavigateSubPage('terms');
@@ -195,6 +181,17 @@ export const Footer: React.FC<FooterProps> = ({
               className="hover:text-black transition-colors"
             >
               {t.footer.terms}
+            </button>
+            <span>•</span>
+            <button
+              type="button"
+              onClick={() => {
+                onViewChange('marketing');
+                onNavigateSubPage('privacy');
+              }}
+              className="hover:text-black transition-colors"
+            >
+              {t.footer.privacy}
             </button>
           </div>
         </div>

@@ -1,9 +1,9 @@
 import { BusinessProfile, CardBranding, PackageTier, ProfileAccessState } from '../types';
 
-export const STARTER_BRANDED_PRICE_MAD = 249;
-export const STARTER_UNBRANDED_PRICE_MAD = 349;
-export const RENEWAL_SIX_MONTHS_MAD = 99;
-export const RENEWAL_ANNUAL_MAD = 199;
+export const STARTER_BRANDED_PRICE_MAD = 250;
+export const STARTER_UNBRANDED_PRICE_MAD = 350;
+export const RENEWAL_SIX_MONTHS_MAD = 150;
+export const RENEWAL_ANNUAL_MAD = 200;
 export const GRACE_PERIOD_DAYS = 14;
 
 export interface PriceCalculationResult {
@@ -19,9 +19,14 @@ export interface PriceCalculationResult {
 }
 
 /**
- * Calculates card pricing strictly adhering to the confirmed launch rules.
- * Pro and Enterprise packages are strictly "Sur devis" / quote required.
- * Wooden stands are initially disabled/unavailable for purchase (0 MAD).
+ * Calculates card pricing strictly adhering to confirmed launch business rules:
+ * - Standard branded PVC card: 250 MAD
+ * - Unbranded PVC card: 350 MAD
+ * - Pro and Enterprise packages: strictly "Sur devis" / quote required
+ * - Wooden stands: optional accessory (initially disabled/coming soon unless configured)
+ * - Initial access: 6 months included
+ * - First renewal: 150 MAD for 6 months
+ * - Subsequent renewal: 200 MAD per year
  */
 export function calculateCardPrice(
   packageTier: PackageTier,
@@ -139,36 +144,79 @@ export function evaluatePublicAccess(
 }
 
 /**
- * Builds RFC 6350 / vCard 3.0 content string for mobile contact download.
+ * Escapes characters for vCard compliance (RFC 2426 / RFC 6350).
+ */
+export function escapeVCardText(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+/**
+ * Normalizes Moroccan or international phone number for WhatsApp direct link.
+ * Handles:
+ * - "+212 6 61 24 88 90" -> "212661248890"
+ * - "0661248890" -> "212661248890"
+ * - "0712345678" -> "212712345678"
+ */
+export function normalizeWhatsAppNumber(phone: string): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.length === 10 && (digits.startsWith('06') || digits.startsWith('07') || digits.startsWith('05'))) {
+    return '212' + digits.substring(1);
+  }
+
+  if (digits.length === 9 && (digits.startsWith('6') || digits.startsWith('7') || digits.startsWith('5'))) {
+    return '212' + digits;
+  }
+
+  if (digits.startsWith('00212')) {
+    return digits.substring(2);
+  }
+
+  return digits;
+}
+
+/**
+ * Builds RFC 6350 / vCard 3.0 content string with UTF-8 support for mobile contact download.
  */
 export function generateVCardString(profile: BusinessProfile): string {
   const lines: string[] = [
     'BEGIN:VCARD',
     'VERSION:3.0',
-    `FN:${profile.displayName}`,
-    `N:${profile.displayName};;;;`,
-    `ORG:${profile.company}`,
-    `TITLE:${profile.jobTitle}`,
+    'PRODID:-//TAGTOP SARL//NFC Smart Business Card//FR',
+    `FN;CHARSET=UTF-8:${escapeVCardText(profile.displayName)}`,
+    `N;CHARSET=UTF-8:${escapeVCardText(profile.displayName)};;;;`,
+    `ORG;CHARSET=UTF-8:${escapeVCardText(profile.company)}`,
+    `TITLE;CHARSET=UTF-8:${escapeVCardText(profile.jobTitle)}`,
   ];
 
   if (profile.phone) {
-    lines.push(`TEL;TYPE=CELL,VOICE:${profile.phone}`);
+    const cleanPhone = profile.phone.trim();
+    lines.push(`TEL;TYPE=CELL,VOICE:${cleanPhone}`);
   }
   if (profile.whatsapp && profile.whatsapp !== profile.phone) {
-    lines.push(`TEL;TYPE=WORK,MSG:${profile.whatsapp}`);
+    const cleanWa = profile.whatsapp.trim();
+    lines.push(`TEL;TYPE=WORK,MSG:${cleanWa}`);
   }
   if (profile.email) {
-    lines.push(`EMAIL;TYPE=PREF,INTERNET:${profile.email}`);
+    lines.push(`EMAIL;TYPE=PREF,INTERNET:${profile.email.trim()}`);
   }
   if (profile.website) {
-    lines.push(`URL:${profile.website}`);
+    lines.push(`URL:${profile.website.trim()}`);
   }
   if (profile.city || profile.address) {
-    lines.push(`ADR;TYPE=WORK:;;${profile.address || ''};${profile.city || ''};;Maroc`);
+    const addr = escapeVCardText(profile.address || '');
+    const city = escapeVCardText(profile.city || '');
+    lines.push(`ADR;CHARSET=UTF-8;TYPE=WORK:;;${addr};${city};;Morocco`);
   }
   if (profile.bio) {
-    const cleanBio = profile.bio.replace(/\r?\n/g, ' ');
-    lines.push(`NOTE:${cleanBio}`);
+    lines.push(`NOTE;CHARSET=UTF-8:${escapeVCardText(profile.bio)}`);
   }
 
   lines.push('REV:' + new Date().toISOString());
@@ -186,7 +234,11 @@ export function downloadVCard(profile: BusinessProfile): void {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `${profile.displayName.toLowerCase().replace(/\s+/g, '_')}_tagtop.vcf`;
+  const safeFilename = (profile.displayName || 'contact')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  anchor.download = `${safeFilename || 'contact'}_tagtop.vcf`;
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
