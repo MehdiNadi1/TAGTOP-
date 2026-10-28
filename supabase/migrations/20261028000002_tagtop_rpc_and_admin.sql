@@ -1,6 +1,10 @@
 -- TAGTOP Supabase PostgreSQL Stored Procedures & RPCs: 20261028000002_tagtop_rpc_and_admin.sql
 -- Description: Server-side secure functions for atomic operations (order delivery, transfer verification, analytics, access state transitions).
--- Hardened for Phase 2A.1: Explicit search_path, revoked public execution on admin functions, and private field redaction.
+-- Hardened for Phase 2A.1 Final:
+-- 1. Explicit search_path = public, pg_temp on all SECURITY DEFINER functions.
+-- 2. Revoked public execution on administrative and maintenance RPCs.
+-- 3. Robust subscription evaluation: ensures profiles past 14-day grace are suspended even if previous cron runs were missed.
+-- 4. Secure public profile & NFC resolution with private contact masking.
 
 -- =============================================================================
 -- 1. SAFE NFC CARD RESOLUTION RPC (PUBLIC PRIVACY PRESERVATION)
@@ -401,6 +405,8 @@ GRANT EXECUTE ON FUNCTION public.founder_update_order_status(TEXT, tagtop_order_
 -- =============================================================================
 -- 8. SUBSCRIPTION EVALUATION (Cron / Scheduled Job / Admin Trigger)
 -- =============================================================================
+-- Hardened: Profiles already past 14-day grace are immediately suspended,
+-- even if previous scheduled evaluations were missed.
 CREATE OR REPLACE FUNCTION public.evaluate_profile_subscriptions()
 RETURNS JSONB AS $$
 DECLARE
@@ -413,7 +419,7 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Subscription evaluation restricted to service_role or founder admin';
   END IF;
 
-  -- Step 1: Active or renewal_due profiles past expiry enter 14-day grace period
+  -- Step 1: Active or renewal_due profiles within their 14-day grace window enter grace_period
   WITH transitioned_to_grace AS (
     UPDATE public.business_profiles
     SET
@@ -427,14 +433,18 @@ BEGIN
   )
   SELECT count(*) INTO v_grace_count FROM transitioned_to_grace;
 
-  -- Step 2: Profiles past the 14-day grace period become suspended (customer data preserved!)
+  -- Step 2: ANY profile past the 14-day grace period (whether in grace_period, active, or renewal_due)
+  -- immediately transitions to expired_suspended! (Safeguards against missed cron runs).
   WITH transitioned_to_suspended AS (
     UPDATE public.business_profiles
     SET
       access_state = 'expired_suspended',
       updated_at = timezone('utc'::text, now())
-    WHERE access_state = 'grace_period'
-      AND v_now > grace_deadline_date
+    WHERE (
+      (access_state = 'grace_period' AND (grace_deadline_date IS NULL OR v_now > grace_deadline_date))
+      OR
+      (access_state IN ('active', 'renewal_due') AND v_now > (expiry_date + INTERVAL '14 days')::DATE)
+    )
     RETURNING id
   )
   SELECT count(*) INTO v_suspended_count FROM transitioned_to_suspended;

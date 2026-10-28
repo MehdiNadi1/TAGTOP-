@@ -1,6 +1,11 @@
 -- TAGTOP Supabase PostgreSQL RLS Policies: 20261028000001_tagtop_rls_policies.sql
 -- Description: Comprehensive Row Level Security (RLS) policies and Column-Level Immutability Triggers.
--- Hardened for Phase 2A.1: Zero trust, strict multi-tenant isolation, and column-level immutability.
+-- Hardened for Phase 2A.1 Final:
+-- 1. Raw business_profiles table is restricted to owners and admin (public uses public_business_profiles view or get_public_profile RPC).
+-- 2. Server-side price calculation and validation on orders INSERT (never trust client prices).
+-- 3. Anonymous orders audited against unauthorized profile linking.
+-- 4. Bank transfers require authenticated caller and strict profile ownership.
+-- 5. Immutability triggers on users, profiles, orders, and transfers.
 
 -- =============================================================================
 -- AUTH HELPER FUNCTIONS
@@ -95,14 +100,17 @@ CREATE TRIGGER trg_enforce_user_immutability
 -- =============================================================================
 ALTER TABLE public.business_profiles ENABLE ROW LEVEL SECURITY;
 
--- Public can view active, renewal_due, grace_period, and expired_suspended profiles
--- (Note: expired_suspended profiles expose only discreet status via get_public_profile RPC)
-CREATE POLICY "Public can view active and public profiles"
+-- PRIVACY FIX: Raw business_profiles table SELECT is strictly limited to profile owner or founder admin.
+-- Anonymous visitors and other customers CANNOT query the raw table directly.
+-- Public profile consumption is routed through public.public_business_profiles view or get_public_profile RPC.
+DROP POLICY IF EXISTS "Public can view active and public profiles" ON public.business_profiles;
+DROP POLICY IF EXISTS "Owners and admins can view profiles" ON public.business_profiles;
+
+CREATE POLICY "Owners and admins can view profiles"
   ON public.business_profiles
   FOR SELECT
   USING (
-    access_state IN ('active', 'renewal_due', 'grace_period', 'expired_suspended')
-    OR owner_id = auth.uid()
+    owner_id = auth.uid()
     OR public.is_founder_admin()
   );
 
@@ -174,8 +182,43 @@ CREATE TRIGGER trg_enforce_business_profile_immutability
   BEFORE INSERT OR UPDATE ON public.business_profiles
   FOR EACH ROW EXECUTE FUNCTION public.enforce_business_profile_immutability();
 
+-- Restricted Public View for Public Profiles (Safe projection with suspended data masking)
+CREATE OR REPLACE VIEW public.public_business_profiles
+WITH (security_invoker = false) AS
+SELECT
+  id,
+  handle,
+  display_name,
+  job_title,
+  company,
+  bio,
+  city,
+  address,
+  avatar_url,
+  logo_url,
+  cover_color,
+  template_id,
+  access_state,
+  expiry_date,
+  -- Redact private contacts and documents if profile is expired_suspended
+  CASE WHEN access_state = 'expired_suspended' THEN '' ELSE phone END AS phone,
+  CASE WHEN access_state = 'expired_suspended' THEN '' ELSE whatsapp END AS whatsapp,
+  CASE WHEN access_state = 'expired_suspended' THEN '' ELSE email END AS email,
+  CASE WHEN access_state = 'expired_suspended' THEN '' ELSE website END AS website,
+  CASE WHEN access_state = 'expired_suspended' THEN '{}'::jsonb ELSE socials END AS socials,
+  CASE WHEN access_state = 'expired_suspended' THEN '[]'::jsonb ELSE products END AS products,
+  CASE WHEN access_state = 'expired_suspended' THEN '[]'::jsonb ELSE documents END AS documents,
+  CASE WHEN access_state = 'expired_suspended' THEN '[]'::jsonb ELSE videos END AS videos,
+  CASE WHEN access_state = 'expired_suspended' THEN '[]'::jsonb ELSE lead_fields END AS lead_fields,
+  digital_tagtop_branding,
+  linked_card_count
+FROM public.business_profiles
+WHERE access_state IN ('active', 'renewal_due', 'grace_period', 'expired_suspended');
+
+GRANT SELECT ON public.public_business_profiles TO anon, authenticated, service_role;
+
 -- =============================================================================
--- 3. ORDERS TABLE RLS & IMMUTABILITY TRIGGER
+-- 3. ORDERS TABLE RLS & SERVER-SIDE PRICING VALIDATION TRIGGER
 -- =============================================================================
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
@@ -212,20 +255,92 @@ CREATE POLICY "Founder admin full access on orders"
   FOR ALL
   USING (public.is_founder_admin());
 
--- Column-Level Immutability Trigger on public.orders
+-- Server-Side Pricing, Immutability & Guest Audit Trigger on public.orders
 CREATE OR REPLACE FUNCTION public.enforce_order_immutability()
 RETURNS TRIGGER AS $$
+DECLARE
+  v_settings RECORD;
+  v_unit_card_price NUMERIC(10, 2);
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NOT public.is_founder_admin() THEN
+      -- 1. Authoritative Pricing Lookup from public.system_settings
+      SELECT
+        starter_branded_price_mad,
+        starter_unbranded_price_mad,
+        wooden_stand_enabled,
+        wooden_stand_price_mad
+      INTO v_settings
+      FROM public.system_settings
+      WHERE id = 1;
+
+      -- 2. Validate package tier (starter only for direct web checkout; pro/enterprise strictly require quote)
+      IF NEW.package_tier = 'starter' THEN
+        IF NEW.card_branding = 'branded' THEN
+          v_unit_card_price := COALESCE(v_settings.starter_branded_price_mad, 250.00);
+        ELSIF NEW.card_branding = 'unbranded' THEN
+          v_unit_card_price := COALESCE(v_settings.starter_unbranded_price_mad, 350.00);
+        ELSE
+          RAISE EXCEPTION 'Invalid card branding: %', NEW.card_branding;
+        END IF;
+      ELSIF NEW.package_tier IN ('pro', 'enterprise') THEN
+        RAISE EXCEPTION 'Unauthorized: Pro and Enterprise packages require quote approval by sales';
+      ELSE
+        RAISE EXCEPTION 'Invalid package tier: %', NEW.package_tier;
+      END IF;
+
+      -- 3. Quantity check
+      IF NEW.card_quantity IS NULL OR NEW.card_quantity < 1 THEN
+        NEW.card_quantity := 1;
+      END IF;
+
+      -- 4. Stand accessory validation
+      IF NEW.wooden_stand_selected THEN
+        IF COALESCE(v_settings.wooden_stand_enabled, FALSE) THEN
+          NEW.wooden_stand_price_mad := COALESCE(v_settings.wooden_stand_price_mad, 0.00);
+        ELSE
+          NEW.wooden_stand_selected := FALSE;
+          NEW.wooden_stand_price_mad := 0.00;
+        END IF;
+      ELSE
+        NEW.wooden_stand_price_mad := 0.00;
+      END IF;
+
+      -- 5. SERVER-CALCULATED PRICE OVERRIDE (Never trust client-supplied price_mad)
+      NEW.price_mad := (v_unit_card_price * NEW.card_quantity) + NEW.wooden_stand_price_mad;
+
+      -- 6. Enforce safe initial fulfillment & payment states
       NEW.order_status := 'received';
       NEW.payment_status := 'cod_pending';
       NEW.proof_approved := FALSE;
+      NEW.proof_rejection_reason := NULL;
       NEW.proof_url := NULL;
       NEW.card_uid := NULL;
       NEW.is_demo := FALSE;
+
+      -- 7. Identity & Profile Ownership Audit
       IF auth.uid() IS NOT NULL THEN
         NEW.customer_id := auth.uid();
+        IF NEW.profile_id IS NOT NULL THEN
+          IF NOT EXISTS (
+            SELECT 1 FROM public.business_profiles
+            WHERE id = NEW.profile_id AND owner_id = auth.uid()
+          ) THEN
+            RAISE EXCEPTION 'Security violation: Cannot link order to a profile you do not own';
+          END IF;
+        END IF;
+      ELSE
+        -- Guest checkout: customer_id is null; verify profile_id if supplied
+        NEW.customer_id := NULL;
+        IF NEW.profile_id IS NOT NULL THEN
+          IF NOT EXISTS (
+            SELECT 1 FROM public.business_profiles
+            WHERE id = NEW.profile_id
+              AND (access_state = 'private_preview' OR email = NEW.customer_email)
+          ) THEN
+            RAISE EXCEPTION 'Security violation: Cannot link guest order to an existing verified customer profile';
+          END IF;
+        END IF;
       END IF;
     END IF;
   ELSIF TG_OP = 'UPDATE' THEN
@@ -270,7 +385,6 @@ CREATE TRIGGER trg_enforce_order_immutability
 -- =============================================================================
 ALTER TABLE public.nfc_cards ENABLE ROW LEVEL SECURITY;
 
--- PRIVACY FIX: Public SELECT policy removed.
 -- Normal users can ONLY see cards they own.
 -- Public NFC card resolution is performed exclusively through the secure resolve_nfc_card RPC.
 CREATE POLICY "Card owners and admin can view NFC cards"
@@ -288,11 +402,11 @@ CREATE POLICY "Founder admin manage NFC cards"
   USING (public.is_founder_admin());
 
 -- =============================================================================
--- 5. LEADS TABLE RLS (SEPARATE PROMOTIONAL CONSENT FIX)
+-- 5. LEADS TABLE RLS (SEPARATE PROMOTIONAL CONSENT)
 -- =============================================================================
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 
--- CONSENT FIX: Anyone can submit a normal business inquiry regardless of promotional consent.
+-- Anyone can submit a normal business inquiry regardless of promotional consent.
 -- promotional_consent is stored faithfully as TRUE or FALSE without blocking legitimate leads.
 CREATE POLICY "Public can submit leads"
   ON public.leads
@@ -334,22 +448,27 @@ CREATE POLICY "Owners can delete leads on their profiles"
   );
 
 -- =============================================================================
--- 6. BANK TRANSFERS TABLE RLS & IMMUTABILITY TRIGGER
+-- 6. BANK TRANSFERS TABLE RLS & STRICT OWNERSHIP TRIGGER
 -- =============================================================================
 ALTER TABLE public.bank_transfers ENABLE ROW LEVEL SECURITY;
 
--- Customers can view transfers they submitted
+-- Customers can view only their own verified transfers
 CREATE POLICY "Customers view own transfers"
   ON public.bank_transfers
   FOR SELECT
   USING (
-    customer_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM public.business_profiles bp
-      WHERE bp.id = bank_transfers.profile_id
-        AND bp.owner_id = auth.uid()
+    auth.uid() IS NOT NULL
+    AND (
+      (
+        customer_id = auth.uid()
+        AND EXISTS (
+          SELECT 1 FROM public.business_profiles bp
+          WHERE bp.id = bank_transfers.profile_id
+            AND bp.owner_id = auth.uid()
+        )
+      )
+      OR public.is_founder_admin()
     )
-    OR public.is_founder_admin()
   );
 
 -- Customers can submit renewal transfers for their own profiles
@@ -357,13 +476,15 @@ CREATE POLICY "Customers submit renewal transfers"
   ON public.bank_transfers
   FOR INSERT
   WITH CHECK (
-    customer_id = auth.uid()
-    OR EXISTS (
-      SELECT 1 FROM public.business_profiles bp
-      WHERE bp.id = bank_transfers.profile_id
-        AND bp.owner_id = auth.uid()
+    auth.uid() IS NOT NULL
+    AND (
+      EXISTS (
+        SELECT 1 FROM public.business_profiles bp
+        WHERE bp.id = bank_transfers.profile_id
+          AND bp.owner_id = auth.uid()
+      )
+      OR public.is_founder_admin()
     )
-    OR public.is_founder_admin()
   );
 
 -- Only founder admin can update transfer verification status
@@ -372,12 +493,26 @@ CREATE POLICY "Founder admin manage bank transfers"
   FOR UPDATE
   USING (public.is_founder_admin());
 
--- Immutability Trigger on public.bank_transfers
+-- Immutability & Ownership Verification Trigger on public.bank_transfers
 CREATE OR REPLACE FUNCTION public.enforce_bank_transfer_immutability()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NOT public.is_founder_admin() THEN
+      IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Unauthorized: Anonymous bank transfer renewal submissions are not permitted';
+      END IF;
+
+      NEW.customer_id := auth.uid();
+
+      -- Verify profile ownership: caller MUST own the profile being renewed
+      IF NOT EXISTS (
+        SELECT 1 FROM public.business_profiles
+        WHERE id = NEW.profile_id AND owner_id = auth.uid()
+      ) THEN
+        RAISE EXCEPTION 'Security violation: Cannot submit renewal transfer for a profile you do not own';
+      END IF;
+
       NEW.status := 'pending';
       NEW.founder_notes := NULL;
       NEW.verified_at := NULL;
