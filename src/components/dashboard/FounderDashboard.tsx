@@ -694,10 +694,3 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
     </div>
   );
 };
-
-        </div >
-
-      </div >
-    </div >
-  );
-};
