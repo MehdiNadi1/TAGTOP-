@@ -38,7 +38,7 @@ export const leadService = {
       email: lead.email || '',
       company: lead.company || '',
       notes: lead.notes || '',
-      promotional_consent: lead.promotionalConsent,
+      promotional_consent: Boolean(lead.promotionalConsent),
     };
 
     const { data, error } = await (supabase.from('leads') as any)
@@ -69,18 +69,24 @@ export const leadService = {
 };
 
 export const cardService = {
+  /**
+   * Resolves NFC card tap using the secure resolve_nfc_card RPC.
+   * Protects card owner and order information from anonymous scrapers.
+   */
   async resolveCardUid(uidOrSerial: string): Promise<string | null> {
     if (!supabase) return null;
 
-    const { data, error } = await supabase
-      .from('nfc_cards')
-      .select('linked_profile_id')
-      .or(`uid.eq.${uidOrSerial},serial_number.eq.${uidOrSerial}`)
-      .eq('status', 'active')
-      .maybeSingle();
+    try {
+      const { data, error } = await (supabase as any).rpc('resolve_nfc_card', {
+        p_uid_or_serial: uidOrSerial,
+      });
 
-    if (error || !data) return null;
-    return (data as any).linked_profile_id;
+      if (error || !data) return null;
+      return (data as any).linked_profile_id || null;
+    } catch (err) {
+      console.warn('[TAGTOP CardService] Failed to resolve NFC card via RPC:', err);
+      return null;
+    }
   },
 
   async recordAnalyticsEvent(profileId: string, eventType: 'tap' | 'whatsapp_click' | 'vcard_download'): Promise<void> {

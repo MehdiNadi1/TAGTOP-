@@ -2,9 +2,13 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  * 
- * TAGTOP Unified Data Adapter (Hybrid Local / Supabase Backend)
- * Automatically delegates to Supabase when environment is configured, or
- * falls back seamlessly to the resilient local storage layer (Phase 1) for demo/offline operation.
+ * TAGTOP Unified Data Adapter
+ * Strict separation of live Supabase backend operations and offline demo mode.
+ * 
+ * Reliability Rule (Phase 2A.1):
+ * When Supabase is configured, operations are executed directly against the live database
+ * and throw real errors upon failure. They NEVER silently swallow errors or fake success
+ * into localStorage. LocalStorage persistence is exclusively reserved for explicit demo/offline mode.
  */
 
 import { Language, BusinessProfile, NfcCardOrder, LeadSubmission } from '../types';
@@ -22,22 +26,26 @@ import {
   recordAnalyticsEvent as recordLocalAnalyticsEvent,
 } from './storage';
 
+export type BackendMode = 'supabase' | 'demo';
+
 export const dataAdapter = {
+  getMode(): BackendMode {
+    return isSupabaseConfigured() ? 'supabase' : 'demo';
+  },
+
   isLiveBackend(): boolean {
     return isSupabaseConfigured();
   },
 
+  /**
+   * Resolves NFC Card physical tap (UID or serial number) to active linked profile ID.
+   */
   async resolveNfcTap(cardUidOrSerial: string): Promise<string | null> {
     if (isSupabaseConfigured()) {
-      try {
-        const profileId = await cardService.resolveCardUid(cardUidOrSerial);
-        if (profileId) return profileId;
-      } catch (err) {
-        console.warn('[TAGTOP Adapter] Supabase card resolve error, falling back to local registry:', err);
-      }
+      return await cardService.resolveCardUid(cardUidOrSerial);
     }
 
-    // Local fallback
+    // Explicit Demo Mode Fallback
     const registry = getStoredRegistry();
     const matched = registry.find(
       (item) =>
@@ -47,82 +55,90 @@ export const dataAdapter = {
     return matched?.linkedProfileId || null;
   },
 
+  /**
+   * Retrieves public profile presentation.
+   */
   async getPublicProfile(handleOrId: string, lang: Language = 'fr'): Promise<BusinessProfile | null> {
     if (isSupabaseConfigured()) {
-      try {
-        const liveProfile = await profileService.getPublicProfile(handleOrId);
-        if (liveProfile) return liveProfile;
-      } catch (err) {
-        console.warn('[TAGTOP Adapter] Supabase public profile fetch error, falling back to local:', err);
-      }
+      return await profileService.getPublicProfile(handleOrId);
     }
 
-    // Local fallback
+    // Explicit Demo Mode Fallback
     const profiles = getStoredProfiles(lang);
     return profiles.find((p) => p.handle === handleOrId || p.id === handleOrId) || null;
   },
 
+  /**
+   * Records tap/interaction analytics event.
+   */
   async recordProfileEvent(profileId: string, event: 'tap' | 'whatsapp' | 'vcard'): Promise<void> {
-    // Record locally in all cases for instant responsive UI counters
-    recordLocalAnalyticsEvent(profileId, event);
-
     if (isSupabaseConfigured()) {
       const mappedEvent = event === 'tap' ? 'tap' : event === 'whatsapp' ? 'whatsapp_click' : 'vcard_download';
-      try {
-        await cardService.recordAnalyticsEvent(profileId, mappedEvent);
-      } catch (err) {
-        console.warn('[TAGTOP Adapter] Supabase analytics log error:', err);
-      }
+      await cardService.recordAnalyticsEvent(profileId, mappedEvent);
+      return;
     }
+
+    // Explicit Demo Mode Fallback
+    recordLocalAnalyticsEvent(profileId, event);
   },
 
+  /**
+   * Submits a customer inquiry lead.
+   * In Supabase mode, executes on server and throws on failure.
+   */
   async submitLead(lead: LeadSubmission): Promise<LeadSubmission> {
-    // Persist locally
-    addStoredLead(lead);
-
     if (isSupabaseConfigured()) {
-      try {
-        return await leadService.submitLead(lead);
-      } catch (err) {
-        console.warn('[TAGTOP Adapter] Supabase lead submission failed, stored locally:', err);
-      }
+      return await leadService.submitLead(lead);
     }
+
+    // Explicit Demo Mode
+    addStoredLead(lead);
     return lead;
   },
 
+  /**
+   * Creates a new card order.
+   * In Supabase mode, executes on server and throws on failure.
+   */
   async createOrder(order: NfcCardOrder, customerId?: string): Promise<NfcCardOrder> {
-    // Persist locally
-    addStoredOrder(order);
-
     if (isSupabaseConfigured()) {
-      try {
-        return await orderService.createOrder(order, customerId);
-      } catch (err) {
-        console.warn('[TAGTOP Adapter] Supabase order insertion failed, stored locally:', err);
-      }
+      return await orderService.createOrder(order, customerId);
     }
+
+    // Explicit Demo Mode
+    addStoredOrder(order);
     return order;
   },
 
+  /**
+   * Submits customer proof approval.
+   * In Supabase mode, executes on server and throws on failure.
+   */
   async approveProof(orderId: string): Promise<void> {
-    // Update locally
+    if (isSupabaseConfigured()) {
+      await orderService.approveProof(orderId);
+      return;
+    }
+
+    // Explicit Demo Mode
     const current = getStoredOrders();
     const updated = current.map((o) =>
       o.id === orderId ? { ...o, proofApproved: true, orderStatus: 'customer_approved' as const } : o
     );
     saveOrders(updated);
-
-    if (isSupabaseConfigured()) {
-      try {
-        await orderService.approveProof(orderId);
-      } catch (err) {
-        console.warn('[TAGTOP Adapter] Supabase proof approval update failed:', err);
-      }
-    }
   },
 
+  /**
+   * Submits customer proof change request with mandatory revision notes.
+   * In Supabase mode, executes on server and throws on failure.
+   */
   async requestProofChange(orderId: string, reason: string): Promise<void> {
-    // Update locally
+    if (isSupabaseConfigured()) {
+      await orderService.requestProofChange(orderId, reason);
+      return;
+    }
+
+    // Explicit Demo Mode
     const current = getStoredOrders();
     const updated = current.map((o) =>
       o.id === orderId
@@ -130,13 +146,5 @@ export const dataAdapter = {
         : o
     );
     saveOrders(updated);
-
-    if (isSupabaseConfigured()) {
-      try {
-        await orderService.requestProofChange(orderId, reason);
-      } catch (err) {
-        console.warn('[TAGTOP Adapter] Supabase proof rejection update failed:', err);
-      }
-    }
   },
 };

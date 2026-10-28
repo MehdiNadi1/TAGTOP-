@@ -102,30 +102,32 @@ export const orderService = {
     return (data as OrderRow[]).map((row) => mapRowToOrder(row));
   },
 
+  /**
+   * Safe customer proof approval via server-side procedure.
+   */
   async approveProof(orderId: string): Promise<void> {
     if (!supabase) throw new Error('Supabase client not configured');
 
-    const { error } = await (supabase.from('orders') as any)
-      .update({
-        proof_approved: true,
-        order_status: 'customer_approved',
-        proof_rejection_reason: null,
-      })
-      .eq('id', orderId);
+    const { error } = await (supabase as any).rpc('customer_submit_proof_decision', {
+      p_order_id: orderId,
+      p_approved: true,
+      p_rejection_reason: null,
+    });
 
     if (error) throw error;
   },
 
+  /**
+   * Safe customer proof revision request via server-side procedure.
+   */
   async requestProofChange(orderId: string, reason: string): Promise<void> {
     if (!supabase) throw new Error('Supabase client not configured');
 
-    const { error } = await (supabase.from('orders') as any)
-      .update({
-        proof_approved: false,
-        proof_rejection_reason: reason,
-        order_status: 'artwork_review',
-      })
-      .eq('id', orderId);
+    const { error } = await (supabase as any).rpc('customer_submit_proof_decision', {
+      p_order_id: orderId,
+      p_approved: false,
+      p_rejection_reason: reason,
+    });
 
     if (error) throw error;
   },

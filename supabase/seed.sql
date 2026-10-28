@@ -159,3 +159,4 @@ BEGIN
   ON CONFLICT (profile_id) DO NOTHING;
 
 END $$;
+

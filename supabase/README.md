@@ -78,3 +78,4 @@ Dans **Authentication** > **URL Configuration** :
 - **Redirect URLs** :
   - `http://localhost:3000/**`
   - `https://mehdinadi1.github.io/TAGTOP-/**`
+

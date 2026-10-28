@@ -278,3 +278,4 @@ DROP TRIGGER IF EXISTS trg_settings_updated_at ON public.system_settings;
 CREATE TRIGGER trg_settings_updated_at
   BEFORE UPDATE ON public.system_settings
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+

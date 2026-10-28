@@ -508,6 +508,26 @@ export interface Database {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
       };
+      resolve_nfc_card: {
+        Args: {
+          p_uid_or_serial: string;
+        };
+        Returns: Json;
+      };
+      get_public_profile: {
+        Args: {
+          p_handle_or_id: string;
+        };
+        Returns: Json;
+      };
+      customer_submit_proof_decision: {
+        Args: {
+          p_order_id: string;
+          p_approved: boolean;
+          p_rejection_reason?: string | null;
+        };
+        Returns: Json;
+      };
       record_profile_event: {
         Args: {
           p_profile_id: string;

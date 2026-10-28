@@ -1,5 +1,6 @@
 -- TAGTOP Supabase PostgreSQL RLS Policies: 20261028000001_tagtop_rls_policies.sql
--- Description: Comprehensive Row Level Security (RLS) policies protecting tenant data isolation and administrative functions.
+-- Description: Comprehensive Row Level Security (RLS) policies and Column-Level Immutability Triggers.
+-- Hardened for Phase 2A.1: Zero trust, strict multi-tenant isolation, and column-level immutability.
 
 -- =============================================================================
 -- AUTH HELPER FUNCTIONS
@@ -15,7 +16,7 @@ BEGIN
       AND role = 'founder_admin'
   );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- Automatically provision a public.users row whenever an auth.users record is created
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
@@ -34,7 +35,7 @@ BEGIN
     SET email = EXCLUDED.email;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -42,7 +43,7 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
 
 -- =============================================================================
--- 1. USERS TABLE RLS
+-- 1. USERS TABLE RLS & IMMUTABILITY TRIGGER
 -- =============================================================================
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
@@ -52,28 +53,50 @@ CREATE POLICY "Users can view their own profile"
   FOR SELECT
   USING (auth.uid() = id OR public.is_founder_admin());
 
--- Customers can update their own personal info (role changes forbidden by policy check)
+-- Customers can update their own personal info
 CREATE POLICY "Users can update their own personal profile"
   ON public.users
   FOR UPDATE
   USING (auth.uid() = id OR public.is_founder_admin())
-  WITH CHECK (
-    (auth.uid() = id AND role = (SELECT role FROM public.users WHERE id = auth.uid()))
-    OR public.is_founder_admin()
-  );
+  WITH CHECK (auth.uid() = id OR public.is_founder_admin());
 
--- Only founder admin can delete or manage all user accounts
+-- Only founder admin can delete or insert arbitrary user accounts
 CREATE POLICY "Founder admin full access on users"
   ON public.users
   FOR ALL
   USING (public.is_founder_admin());
 
+-- Column-Level Immutability Trigger on public.users
+CREATE OR REPLACE FUNCTION public.enforce_user_immutability()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT public.is_founder_admin() THEN
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+      RAISE EXCEPTION 'Security violation: Role cannot be modified by customer';
+    END IF;
+    IF NEW.id IS DISTINCT FROM OLD.id THEN
+      RAISE EXCEPTION 'Security violation: User ID is immutable';
+    END IF;
+    IF NEW.email IS DISTINCT FROM OLD.email THEN
+      RAISE EXCEPTION 'Security violation: Email must be updated through authenticated email change flow';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+DROP TRIGGER IF EXISTS trg_enforce_user_immutability ON public.users;
+CREATE TRIGGER trg_enforce_user_immutability
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_user_immutability();
+
 -- =============================================================================
--- 2. BUSINESS PROFILES TABLE RLS
+-- 2. BUSINESS PROFILES TABLE RLS & IMMUTABILITY TRIGGER
 -- =============================================================================
 ALTER TABLE public.business_profiles ENABLE ROW LEVEL SECURITY;
 
--- Public can view active, renewal_due, grace_period, and expired_suspended profiles (suspended show discreet notice)
+-- Public can view active, renewal_due, grace_period, and expired_suspended profiles
+-- (Note: expired_suspended profiles expose only discreet status via get_public_profile RPC)
 CREATE POLICY "Public can view active and public profiles"
   ON public.business_profiles
   FOR SELECT
@@ -92,15 +115,12 @@ CREATE POLICY "Owners can insert their profiles"
     OR public.is_founder_admin()
   );
 
--- Profile owner can update their own profile (access_state changes restricted to admin/rpc)
+-- Profile owner can update their own profile
 CREATE POLICY "Owners can update their profiles"
   ON public.business_profiles
   FOR UPDATE
   USING (owner_id = auth.uid() OR public.is_founder_admin())
-  WITH CHECK (
-    (owner_id = auth.uid() AND access_state = (SELECT access_state FROM public.business_profiles WHERE id = id))
-    OR public.is_founder_admin()
-  );
+  WITH CHECK (owner_id = auth.uid() OR public.is_founder_admin());
 
 -- Profile owner can delete their own profile
 CREATE POLICY "Owners can delete their profiles"
@@ -108,8 +128,54 @@ CREATE POLICY "Owners can delete their profiles"
   FOR DELETE
   USING (owner_id = auth.uid() OR public.is_founder_admin());
 
+-- Column-Level Immutability Trigger on public.business_profiles
+CREATE OR REPLACE FUNCTION public.enforce_business_profile_immutability()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NOT public.is_founder_admin() THEN
+      NEW.owner_id := auth.uid();
+      NEW.access_state := 'private_preview';
+      NEW.expiry_date := (CURRENT_DATE + INTERVAL '180 days')::DATE;
+      NEW.grace_deadline_date := NULL;
+      NEW.linked_card_count := 0;
+      NEW.is_demo := FALSE;
+    END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NOT public.is_founder_admin() THEN
+      -- Customer cannot transfer ownership
+      IF NEW.owner_id IS DISTINCT FROM OLD.owner_id THEN
+        RAISE EXCEPTION 'Security violation: Profile ownership cannot be transferred directly';
+      END IF;
+      -- Customer cannot manipulate subscription status or expiry dates
+      IF NEW.access_state IS DISTINCT FROM OLD.access_state THEN
+        RAISE EXCEPTION 'Security violation: Profile access state can only be modified by system/admin';
+      END IF;
+      IF NEW.expiry_date IS DISTINCT FROM OLD.expiry_date THEN
+        RAISE EXCEPTION 'Security violation: Expiry date is immutable by customer';
+      END IF;
+      IF NEW.grace_deadline_date IS DISTINCT FROM OLD.grace_deadline_date THEN
+        RAISE EXCEPTION 'Security violation: Grace period deadline is immutable by customer';
+      END IF;
+      IF NEW.linked_card_count IS DISTINCT FROM OLD.linked_card_count THEN
+        RAISE EXCEPTION 'Security violation: Linked card count is managed by card provisioning';
+      END IF;
+      IF NEW.is_demo IS DISTINCT FROM OLD.is_demo THEN
+        RAISE EXCEPTION 'Security violation: Demo flag is immutable by customer';
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+DROP TRIGGER IF EXISTS trg_enforce_business_profile_immutability ON public.business_profiles;
+CREATE TRIGGER trg_enforce_business_profile_immutability
+  BEFORE INSERT OR UPDATE ON public.business_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_business_profile_immutability();
+
 -- =============================================================================
--- 3. ORDERS TABLE RLS
+-- 3. ORDERS TABLE RLS & IMMUTABILITY TRIGGER
 -- =============================================================================
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
@@ -129,20 +195,16 @@ CREATE POLICY "Customers can insert orders"
   FOR INSERT
   WITH CHECK (
     customer_id = auth.uid()
-    OR auth.role() = 'anon' -- Allows unauthenticated guest checkout with email
+    OR auth.role() = 'anon' -- Guest checkout permitted
     OR public.is_founder_admin()
   );
 
--- Customers can only approve artwork proofs or submit change requests
+-- Customers can update proof review status
 CREATE POLICY "Customers can update artwork proof approval"
   ON public.orders
   FOR UPDATE
   USING (customer_id = auth.uid() OR public.is_founder_admin())
-  WITH CHECK (
-    -- Normal customers cannot modify prices or order statuses directly
-    (customer_id = auth.uid() AND price_mad = (SELECT price_mad FROM public.orders WHERE id = id))
-    OR public.is_founder_admin()
-  );
+  WITH CHECK (customer_id = auth.uid() OR public.is_founder_admin());
 
 -- Founder admin full access on orders
 CREATE POLICY "Founder admin full access on orders"
@@ -150,18 +212,72 @@ CREATE POLICY "Founder admin full access on orders"
   FOR ALL
   USING (public.is_founder_admin());
 
+-- Column-Level Immutability Trigger on public.orders
+CREATE OR REPLACE FUNCTION public.enforce_order_immutability()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NOT public.is_founder_admin() THEN
+      NEW.order_status := 'received';
+      NEW.payment_status := 'cod_pending';
+      NEW.proof_approved := FALSE;
+      NEW.proof_url := NULL;
+      NEW.card_uid := NULL;
+      NEW.is_demo := FALSE;
+      IF auth.uid() IS NOT NULL THEN
+        NEW.customer_id := auth.uid();
+      END IF;
+    END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NOT public.is_founder_admin() THEN
+      -- Customer cannot modify prices, accessories, quantities, or fulfillment states
+      IF NEW.customer_id IS DISTINCT FROM OLD.customer_id OR
+         NEW.price_mad IS DISTINCT FROM OLD.price_mad OR
+         NEW.wooden_stand_price_mad IS DISTINCT FROM OLD.wooden_stand_price_mad OR
+         NEW.card_quantity IS DISTINCT FROM OLD.card_quantity OR
+         NEW.package_tier IS DISTINCT FROM OLD.package_tier OR
+         NEW.card_color IS DISTINCT FROM OLD.card_color OR
+         NEW.card_branding IS DISTINCT FROM OLD.card_branding OR
+         NEW.wooden_stand_selected IS DISTINCT FROM OLD.wooden_stand_selected OR
+         NEW.payment_status IS DISTINCT FROM OLD.payment_status OR
+         NEW.card_uid IS DISTINCT FROM OLD.card_uid OR
+         NEW.is_demo IS DISTINCT FROM OLD.is_demo THEN
+        RAISE EXCEPTION 'Security violation: Order pricing, configuration, and fulfillment are immutable';
+      END IF;
+
+      -- Customers can only transition order_status between received/artwork_review and customer_approved
+      IF NEW.order_status IS DISTINCT FROM OLD.order_status THEN
+        IF OLD.order_status NOT IN ('received', 'artwork_review') THEN
+          RAISE EXCEPTION 'Security violation: Order status cannot be modified once in production or delivery';
+        END IF;
+        IF NEW.order_status NOT IN ('customer_approved', 'artwork_review') THEN
+          RAISE EXCEPTION 'Security violation: Customer can only approve proof or request revision';
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+DROP TRIGGER IF EXISTS trg_enforce_order_immutability ON public.orders;
+CREATE TRIGGER trg_enforce_order_immutability
+  BEFORE INSERT OR UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_order_immutability();
+
 -- =============================================================================
--- 4. NFC CARDS TABLE RLS
+-- 4. NFC CARDS TABLE RLS (PRIVACY HARDENING)
 -- =============================================================================
 ALTER TABLE public.nfc_cards ENABLE ROW LEVEL SECURITY;
 
--- Anyone can resolve active NFC cards by UID for physical taps
-CREATE POLICY "Public can resolve active NFC cards by UID"
+-- PRIVACY FIX: Public SELECT policy removed.
+-- Normal users can ONLY see cards they own.
+-- Public NFC card resolution is performed exclusively through the secure resolve_nfc_card RPC.
+CREATE POLICY "Card owners and admin can view NFC cards"
   ON public.nfc_cards
   FOR SELECT
   USING (
-    status = 'active'
-    OR customer_id = auth.uid()
+    customer_id = auth.uid()
     OR public.is_founder_admin()
   );
 
@@ -172,21 +288,23 @@ CREATE POLICY "Founder admin manage NFC cards"
   USING (public.is_founder_admin());
 
 -- =============================================================================
--- 5. LEADS TABLE RLS
+-- 5. LEADS TABLE RLS (SEPARATE PROMOTIONAL CONSENT FIX)
 -- =============================================================================
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 
--- Anyone can submit a lead on an active public profile with consent
+-- CONSENT FIX: Anyone can submit a normal business inquiry regardless of promotional consent.
+-- promotional_consent is stored faithfully as TRUE or FALSE without blocking legitimate leads.
 CREATE POLICY "Public can submit leads"
   ON public.leads
   FOR INSERT
   WITH CHECK (
-    promotional_consent = TRUE
-    AND EXISTS (
+    EXISTS (
       SELECT 1 FROM public.business_profiles bp
       WHERE bp.id = leads.profile_id
         AND bp.access_state IN ('active', 'renewal_due', 'grace_period')
     )
+    AND length(trim(name)) > 0
+    AND length(trim(phone)) > 0
   );
 
 -- Only the profile owner or founder admin can view leads collected on their profiles
@@ -216,7 +334,7 @@ CREATE POLICY "Owners can delete leads on their profiles"
   );
 
 -- =============================================================================
--- 6. BANK TRANSFERS TABLE RLS
+-- 6. BANK TRANSFERS TABLE RLS & IMMUTABILITY TRIGGER
 -- =============================================================================
 ALTER TABLE public.bank_transfers ENABLE ROW LEVEL SECURITY;
 
@@ -254,13 +372,39 @@ CREATE POLICY "Founder admin manage bank transfers"
   FOR UPDATE
   USING (public.is_founder_admin());
 
+-- Immutability Trigger on public.bank_transfers
+CREATE OR REPLACE FUNCTION public.enforce_bank_transfer_immutability()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NOT public.is_founder_admin() THEN
+      NEW.status := 'pending';
+      NEW.founder_notes := NULL;
+      NEW.verified_at := NULL;
+      NEW.verified_by := NULL;
+      NEW.is_demo := FALSE;
+    END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NOT public.is_founder_admin() THEN
+      RAISE EXCEPTION 'Security violation: Bank transfer status can only be modified by founder admin';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+DROP TRIGGER IF EXISTS trg_enforce_bank_transfer_immutability ON public.bank_transfers;
+CREATE TRIGGER trg_enforce_bank_transfer_immutability
+  BEFORE INSERT OR UPDATE ON public.bank_transfers
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_bank_transfer_immutability();
+
 -- =============================================================================
 -- 7. ANALYTICS TABLE RLS
 -- =============================================================================
 ALTER TABLE public.analytics_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.profile_analytics_summary ENABLE ROW LEVEL SECURITY;
 
--- Anyone can log an interaction event on a public profile
+-- Anyone can log an interaction event on an existing profile
 CREATE POLICY "Public can log analytics event"
   ON public.analytics_events
   FOR INSERT
