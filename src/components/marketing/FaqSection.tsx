@@ -78,7 +78,7 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ currentLanguage }) => {
                   />
                 </button>
                 {isOpen && (
-                  <div className="px-6 pb-5 text-sm text-slate-600 leading-relaxed border-t border-neutral-100 pt-3">
+                  <div className="px-6 pb-5 text-sm text-slate-600 leading-relaxed border-t border-neutral-100 pt-3 text-left rtl:text-right">
                     {faq.a}
                   </div>
                 )}

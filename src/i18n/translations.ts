@@ -403,6 +403,11 @@ export interface Translations {
     flipBack: string;
     tiltHint: string;
     sampleBusinessTitle: string;
+    nfcTap: string;
+    nfcIdLabel: string;
+    isoStandard: string;
+    matteBlack: string;
+    matteWhite: string;
   };
   customerDashboard: {
     ownerSpace: string;
@@ -504,6 +509,16 @@ export interface Translations {
     pwaDesc: string;
     pwaIphone: string;
     pwaAndroid: string;
+    renewal6MonthsLabel: string;
+    renewalAnnualLabel: string;
+    pendingManualVerification: string;
+    orderStatusReceived: string;
+    orderStatusArtworkReview: string;
+    orderStatusCustomerApproved: string;
+    orderStatusProduction: string;
+    orderStatusLinked: string;
+    orderStatusShipped: string;
+    orderStatusDelivered: string;
   };
   founderDashboard: {
     adminBadge: string;
@@ -615,6 +630,9 @@ export interface Translations {
     copyright: string;
     privacy: string;
     terms: string;
+    cashOnDelivery: string;
+    cihBank: string;
+    ntagCertified: string;
   };
 }
 
@@ -909,7 +927,7 @@ export const translations: Record<Language, Translations> = {
       indicativePrices: 'Tarifs indicatifs',
       simulatedDownload: 'Téléchargement simulé :',
       namePlaceholder: 'Votre nom',
-      emailPlaceholder: 'contact@exemple.ma',
+      emailPlaceholder: 'contact@atlasdesign.ma',
       companyPlaceholder: 'Votre entreprise',
       notesPlaceholder: 'Projet ou objet du contact...',
       digitalFooterNetwork: 'Cartes de visite NFC & Profils connectés au Maroc',
@@ -1022,6 +1040,11 @@ export const translations: Record<Language, Translations> = {
       flipBack: 'Retourner la carte (verso)',
       tiltHint: 'Inclinez avec la souris',
       sampleBusinessTitle: 'Architecture & Scénographie',
+      nfcTap: 'NFC Tap',
+      nfcIdLabel: 'ID NFC',
+      isoStandard: 'ISO/IEC 14443-A',
+      matteBlack: 'Noir Mat',
+      matteWhite: 'Blanc Mat',
     },
     customerDashboard: {
       ownerSpace: 'Espace Propriétaire',
@@ -1123,6 +1146,16 @@ export const translations: Record<Language, Translations> = {
       pwaDesc: 'L\'application TAGTOP fonctionne comme une Progressive Web App (PWA) sans téléchargement sur l\'App Store ou Google Play.',
       pwaIphone: 'Sur iPhone (Safari) : Appuyez sur l\'icône de partage puis « Sur l\'écran d\'accueil ».',
       pwaAndroid: 'Sur Android (Chrome) : Appuyez sur le menu (trois points) puis « Installer l\'application ».',
+      renewal6MonthsLabel: 'Renouvellement 6 mois supplémentaires (99 MAD)',
+      renewalAnnualLabel: 'Renouvellement annuel (199 MAD)',
+      pendingManualVerification: 'En attente de vérification manuelle par le fondateur.',
+      orderStatusReceived: 'Reçue',
+      orderStatusArtworkReview: 'Revue maquette (BAT)',
+      orderStatusCustomerApproved: 'Validée par le client',
+      orderStatusProduction: 'En fabrication',
+      orderStatusLinked: 'Puce associée',
+      orderStatusShipped: 'Expédiée',
+      orderStatusDelivered: 'Livrée',
     },
     founderDashboard: {
       adminBadge: 'Accès Administrateur Unique',
@@ -1234,6 +1267,9 @@ export const translations: Record<Language, Translations> = {
       copyright: 'Tous droits réservés. Fabriqué pour le Maroc.',
       privacy: 'Politique de Confidentialité',
       terms: 'Conditions d\'Utilisation',
+      cashOnDelivery: 'Paiement à la livraison (COD)',
+      cihBank: 'Virement CIH Bank',
+      ntagCertified: 'Certifié NTAG',
     },
   },
   ar: {
@@ -1396,7 +1432,7 @@ export const translations: Record<Language, Translations> = {
       proFeature3: 'إدارة مركزية من حساب مالك واحد',
       proFeature4: 'إمكانية الاختيار مع أو بدون شعار TAGTOP',
       proCta: 'طلب عرض أسعار Pro',
-      enterpriseTitle: 'باقة المؤسسات Enterprise',
+      enterpriseTitle: 'باقة المؤسسات',
       enterpriseSubtitle: 'طلبات مجمعة للشركات والهيئات الكبرى بالمغرب',
       enterpriseDesc: 'للطلبات الكبيرة والشركات والهيئات في جميع أنحاء المملكة.',
       enterpriseQuote: 'طلب عرض أسعار',
@@ -1526,7 +1562,7 @@ export const translations: Record<Language, Translations> = {
       indicativePrices: 'أسعار تقديرية',
       simulatedDownload: 'تنزيل تجريبي :',
       namePlaceholder: 'الاسم الكامل',
-      emailPlaceholder: 'contact@exemple.ma',
+      emailPlaceholder: 'contact@atlasdesign.ma',
       companyPlaceholder: 'شركتك أو نشاطك',
       notesPlaceholder: 'تفاصيل المشروع أو سبب التواصل...',
       digitalFooterNetwork: 'بطاقات عمل ذكية وملفات مهنية رقمية بالمغرب',
@@ -1639,6 +1675,11 @@ export const translations: Record<Language, Translations> = {
       flipBack: 'قلب البطاقة (الوجه الخلفي)',
       tiltHint: 'حرك الفأرة للتأثير ثلاثي الأبعاد',
       sampleBusinessTitle: 'هندسة معمارية وتصميم',
+      nfcTap: 'لمسة NFC',
+      nfcIdLabel: 'معرف NFC',
+      isoStandard: 'ISO/IEC 14443-A',
+      matteBlack: 'أسود غير لامع',
+      matteWhite: 'أبيض غير لامع',
     },
     customerDashboard: {
       ownerSpace: 'فضاء المالك',
@@ -1740,6 +1781,16 @@ export const translations: Record<Language, Translations> = {
       pwaDesc: 'يعمل تطبيق TAGTOP كتطبيق ويب متقدم (PWA) دون الحاجة للتنزيل من App Store أو Google Play.',
       pwaIphone: 'على هواتف آيفون (Safari) : اضغط على زر المشاركة ثم "إضافة إلى الشاشة الرئيسية".',
       pwaAndroid: 'على هواتف أندرويد (Chrome) : اضغط على القائمة (ثلاث نقاط) ثم "تثبيت التطبيق".',
+      renewal6MonthsLabel: 'تجديد 6 أشهر إضافية (99 درهم)',
+      renewalAnnualLabel: 'تجديد سنوي (199 درهم)',
+      pendingManualVerification: 'في انتظار التحقق اليدوي من قبل المؤسس.',
+      orderStatusReceived: 'تم الاستلام',
+      orderStatusArtworkReview: 'مراجعة النموذج (BAT)',
+      orderStatusCustomerApproved: 'معتمدة من العميل',
+      orderStatusProduction: 'قيد التصنيع',
+      orderStatusLinked: 'تم ربط الشريحة',
+      orderStatusShipped: 'تم الشحن',
+      orderStatusDelivered: 'تم التسليم',
     },
     founderDashboard: {
       adminBadge: 'دخول الإدارة الموحد',
@@ -1851,6 +1902,9 @@ export const translations: Record<Language, Translations> = {
       copyright: 'جميع الحقوق محفوظة. صُمم للمغرب.',
       privacy: 'سياسة الخصوصية',
       terms: 'شروط الاستخدام',
+      cashOnDelivery: 'الدفع عند الاستلام (COD)',
+      cihBank: 'تحويل CIH Bank',
+      ntagCertified: 'معتمد بشريحة NTAG',
     },
   },
   en: {
@@ -2256,6 +2310,11 @@ export const translations: Record<Language, Translations> = {
       flipBack: 'Flip card (back)',
       tiltHint: 'Tilt with mouse',
       sampleBusinessTitle: 'Architecture & Scenography',
+      nfcTap: 'NFC Tap',
+      nfcIdLabel: 'NFC ID',
+      isoStandard: 'ISO/IEC 14443-A',
+      matteBlack: 'Matte Black',
+      matteWhite: 'Matte White',
     },
     customerDashboard: {
       ownerSpace: 'Owner Portal',
@@ -2357,6 +2416,16 @@ export const translations: Record<Language, Translations> = {
       pwaDesc: 'TAGTOP works as a Progressive Web App (PWA) without requiring App Store or Google Play downloads.',
       pwaIphone: 'On iPhone (Safari): Tap the share icon then "Add to Home Screen".',
       pwaAndroid: 'On Android (Chrome): Tap the menu (three dots) then "Install app".',
+      renewal6MonthsLabel: '6-Month Extension Renewal (99 MAD)',
+      renewalAnnualLabel: 'Annual Renewal (199 MAD)',
+      pendingManualVerification: 'Pending manual verification by founder.',
+      orderStatusReceived: 'Received',
+      orderStatusArtworkReview: 'Artwork Review (BAT)',
+      orderStatusCustomerApproved: 'Approved by Customer',
+      orderStatusProduction: 'In Production',
+      orderStatusLinked: 'Chip Linked',
+      orderStatusShipped: 'Shipped',
+      orderStatusDelivered: 'Delivered',
     },
     founderDashboard: {
       adminBadge: 'Single Administrator Access',
@@ -2468,6 +2537,9 @@ export const translations: Record<Language, Translations> = {
       copyright: 'All rights reserved. Made for Morocco.',
       privacy: 'Privacy Policy',
       terms: 'Terms of Use',
+      cashOnDelivery: 'Cash On Delivery (COD)',
+      cihBank: 'CIH Bank Transfer',
+      ntagCertified: 'NTAG Certified',
     },
   },
 };

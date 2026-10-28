@@ -21,7 +21,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
   color = 'black',
   branding = 'branded',
   businessName = 'ATELIER ATLAS DESIGN',
-  businessTitle = 'Architecture & Scénographie',
+  businessTitle,
   logoPreviewUrl,
   cardUid = '04:A2:8F:9C:3E:11:80',
   interactiveTilt = true,
@@ -34,6 +34,8 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
   const [rotateY, setRotateY] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
   const t = translations[currentLanguage];
+
+  const resolvedBusinessTitle = businessTitle || t.nfcCard.sampleBusinessTitle;
 
   const isBlack = color === 'black';
 
@@ -74,7 +76,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
         onClick={() => setIsFlipped(!isFlipped)}
         role="button"
         tabIndex={0}
-        aria-label={`${t.nfcCard.cardLabel} ${isBlack ? 'Noir Mat' : 'Blanc Mat'}`}
+        aria-label={`${t.nfcCard.cardLabel} ${isBlack ? t.nfcCard.matteBlack : t.nfcCard.matteWhite}`}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -131,7 +133,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
                   }`}
                 />
                 <span className="text-[10px] uppercase font-mono tracking-widest font-semibold">
-                  NFC Tap
+                  {t.nfcCard.nfcTap}
                 </span>
               </div>
             </div>
@@ -162,7 +164,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
                     {businessName}
                   </div>
                   <div className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'}`}>
-                    {businessTitle}
+                    {resolvedBusinessTitle}
                   </div>
                 </div>
               )}
@@ -205,8 +207,8 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
 
             <div className="my-auto space-y-3">
               <div className="flex items-center justify-between text-xs font-mono opacity-70" dir="ltr">
-                <span>NFC ID: {cardUid}</span>
-                <span>ISO/IEC 14443-A</span>
+                <span>{t.nfcCard.nfcIdLabel}: {cardUid}</span>
+                <span>{t.nfcCard.isoStandard}</span>
               </div>
               <p className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'} leading-relaxed text-left rtl:text-right`}>
                 {t.nfcCard.backInstructions}

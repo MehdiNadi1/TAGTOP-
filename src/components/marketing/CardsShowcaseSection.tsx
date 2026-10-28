@@ -42,7 +42,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
             <NfcCard3D
               color={selectedColor}
               branding={selectedBranding}
-              businessName="ATELIER ATLAS DESIGN"
+              businessName={currentLanguage === 'ar' ? 'أتيليه أطلس ديزاين' : 'ATELIER ATLAS DESIGN'}
               businessTitle={t.nfcCard.sampleBusinessTitle}
               showFlipButton={true}
               interactiveTilt={true}

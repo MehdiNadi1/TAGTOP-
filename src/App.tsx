@@ -18,11 +18,14 @@ import {
 } from './types';
 import {
   initialProfiles,
+  getLocalizedProfiles,
   initialOrders,
   initialLeads,
+  getLocalizedLeads,
   initialNfcRegistry,
   initialBankTransfers,
   initialSettings,
+  getLocalizedSettings,
 } from './data/mockData';
 import { Header } from './components/common/Header';
 import { Footer } from './components/common/Footer';
@@ -43,20 +46,37 @@ import { ContactQuoteModal } from './components/modals/ContactQuoteModal';
 import { translations } from './i18n/translations';
 
 export default function App() {
-  // Global presentation language (default initial: French 'fr')
-  const [currentLanguage, setCurrentLanguage] = useState<Language>('fr');
+  // Global presentation language (persisted in localStorage, default initial: 'fr')
+  const [currentLanguage, setCurrentLanguage] = useState<Language>(() => {
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('tagtop_lang') : null;
+    if (saved === 'ar' || saved === 'en' || saved === 'fr') return saved as Language;
+    return 'fr';
+  });
+
+  const handleLanguageChange = (lang: Language) => {
+    setCurrentLanguage(lang);
+    try {
+      localStorage.setItem('tagtop_lang', lang);
+    } catch {}
+  };
 
   // Active platform view: marketing website, customer portal, founder console, or public live profile
   const [currentView, setCurrentView] = useState<AppView>('marketing');
   const [currentSubPage, setCurrentSubPage] = useState<MarketingSubPage>('home');
 
-  // Application data state
-  const [profiles, setProfiles] = useState<BusinessProfile[]>(initialProfiles);
+  // Application data state with reactive localization
+  const [profiles, setProfiles] = useState<BusinessProfile[]>(() => getLocalizedProfiles(currentLanguage));
   const [orders, setOrders] = useState<NfcCardOrder[]>(initialOrders);
-  const [leads, setLeads] = useState<LeadSubmission[]>(initialLeads);
+  const [leads, setLeads] = useState<LeadSubmission[]>(() => getLocalizedLeads(currentLanguage));
   const [registry, setRegistry] = useState<NfcCardRegistryItem[]>(initialNfcRegistry);
   const [transfers, setTransfers] = useState<BankTransferRenewal[]>(initialBankTransfers);
-  const [settings, setSettings] = useState<SystemSettings>(initialSettings);
+  const [settings, setSettings] = useState<SystemSettings>(() => getLocalizedSettings(currentLanguage));
+
+  useEffect(() => {
+    setProfiles(getLocalizedProfiles(currentLanguage));
+    setSettings(getLocalizedSettings(currentLanguage));
+    setLeads(getLocalizedLeads(currentLanguage));
+  }, [currentLanguage]);
 
   // Quote modal state
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
@@ -239,7 +259,7 @@ export default function App() {
       {/* Universal Top Header with Brand Logo and View Switching */}
       <Header
         currentLanguage={currentLanguage}
-        onLanguageChange={setCurrentLanguage}
+        onLanguageChange={handleLanguageChange}
         currentView={currentView}
         onViewChange={setCurrentView}
         currentSubPage={currentSubPage}
@@ -373,7 +393,7 @@ export default function App() {
           {/* Global Footer */}
           <Footer
             currentLanguage={currentLanguage}
-            onLanguageChange={setCurrentLanguage}
+            onLanguageChange={handleLanguageChange}
             onNavigateSubPage={setCurrentSubPage}
             onViewChange={setCurrentView}
           />

@@ -45,11 +45,11 @@ export const CardConfigurator: React.FC<CardConfiguratorProps> = ({
   const [woodenStandRequested] = useState<boolean>(false);
 
   // Delivery Form
-  const [customerName, setCustomerName] = useState<string>('Yassine Bennani');
-  const [customerPhone, setCustomerPhone] = useState<string>('+212 6 61 24 88 90');
-  const [customerEmail] = useState<string>('yassine.bennani@atlasdesign.ma');
-  const [city, setCity] = useState<string>('Casablanca');
-  const [address, setAddress] = useState<string>('Boulevard d’Anfa, Résidence Al Manar');
+  const [customerName, setCustomerName] = useState<string>('');
+  const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [customerEmail] = useState<string>('contact@tagtop.ma');
+  const [city, setCity] = useState<string>('');
+  const [address, setAddress] = useState<string>('');
 
   const [orderSubmitted, setOrderSubmitted] = useState<boolean>(false);
   const [submittedOrderId, setSubmittedOrderId] = useState<string>('');

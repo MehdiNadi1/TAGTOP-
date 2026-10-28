@@ -57,6 +57,19 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   onOrderNewCard,
 }) => {
   const t = translations[currentLanguage];
+
+  const getOrderStatusLabel = (status: string) => {
+    switch (status) {
+      case 'received': return t.customerDashboard.orderStatusReceived;
+      case 'artwork_review': return t.customerDashboard.orderStatusArtworkReview;
+      case 'customer_approved': return t.customerDashboard.orderStatusCustomerApproved;
+      case 'production': return t.customerDashboard.orderStatusProduction;
+      case 'linked': return t.customerDashboard.orderStatusLinked;
+      case 'shipped': return t.customerDashboard.orderStatusShipped;
+      case 'delivered': return t.customerDashboard.orderStatusDelivered;
+      default: return status.replace('_', ' ');
+    }
+  };
   const [activeTab, setActiveTab] = useState<CustomerTab>('overview');
   const [selectedProfileId, setSelectedProfileId] = useState<string>(
     profiles[0]?.id || ''
@@ -104,12 +117,12 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       amountMAD: renewalPeriod === '6months' ? 99 : 199,
       periodDescription:
         renewalPeriod === '6months'
-          ? 'Renouvellement 6 mois supplémentaires (99 MAD)'
-          : 'Renouvellement annuel (199 MAD)',
+          ? t.customerDashboard.renewal6MonthsLabel
+          : t.customerDashboard.renewalAnnualLabel,
       receiptNumber: renewalReceipt,
       submittedAt: new Date().toISOString(),
       status: 'pending',
-      founderNotes: 'En attente de vérification manuelle par le fondateur.',
+      founderNotes: t.customerDashboard.pendingManualVerification,
     };
 
     onSubmitRenewalTransfer(newTransfer);
@@ -617,7 +630,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                             </span>
                           </div>
                           <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 uppercase">
-                            {ord.orderStatus.replace('_', ' ')}
+                            {getOrderStatusLabel(ord.orderStatus)}
                           </span>
                         </div>
 
@@ -871,7 +884,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       {t.customerDashboard.submitVerificationBtn}
                     </button>
                     <a
-                      href={`https://wa.me/${settings.supportWhatsAppNumber.replace(/\D/g, '')}?text=Bonjour%20TAGTOP,%20je%20viens%20d'effectuer%20un%20virement%20de%20renouvellement.`}
+                      href={`https://wa.me/${settings.supportWhatsAppNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
+                        currentLanguage === 'ar'
+                          ? 'مرحباً TAGTOP، لقد قمت للتو بتحويل بنكي للتجديد.'
+                          : currentLanguage === 'en'
+                          ? 'Hello TAGTOP, I just made a renewal bank transfer.'
+                          : "Bonjour TAGTOP, je viens d'effectuer un virement de renouvellement."
+                      )}`}
                       target="_blank"
                       rel="noreferrer"
                       className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-1.5"

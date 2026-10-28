@@ -158,13 +158,13 @@ export const Footer: React.FC<FooterProps> = ({
             </p>
             <div className="pt-2 flex items-center gap-2 flex-wrap">
               <span className="text-[10px] font-mono bg-neutral-100 text-slate-700 px-2 py-1 rounded">
-                Cash On Delivery
+                {t.footer.cashOnDelivery}
               </span>
               <span className="text-[10px] font-mono bg-neutral-100 text-slate-700 px-2 py-1 rounded">
-                CIH Bank
+                {t.footer.cihBank}
               </span>
               <span className="text-[10px] font-mono bg-neutral-100 text-slate-700 px-2 py-1 rounded">
-                NTAG Certified
+                {t.footer.ntagCertified}
               </span>
             </div>
           </div>

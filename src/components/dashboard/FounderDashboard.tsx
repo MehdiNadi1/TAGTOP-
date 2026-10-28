@@ -321,7 +321,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-white">{ord.priceMAD} MAD</span>
+                          <span className="font-mono font-bold text-white">{ord.priceMAD} {t.common.currency}</span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${ord.paymentStatus === 'cod_collected' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-400/20 text-amber-300'
                             }`}>
                             {ord.paymentStatus === 'cod_collected' ? t.founderDashboard.codCollected : t.founderDashboard.codPending}
@@ -475,8 +475,8 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-neutral-950 p-3 rounded-xl border border-neutral-800">
                           <div>
                             <p className="text-neutral-400">{t.founderDashboard.amountReceived}</p>
-                            <p className="font-bold text-white text-sm">{trn.amountMAD} MAD</p>
-                            <p className="text-[11px] text-neutral-400">{trn.periodDescription}</p>
+                            <p className="font-bold text-white text-sm">{trn.amountMAD} {t.common.currency}</p>
+                            <p className="text-[11px] text-neutral-400">{trn.amountMAD === 99 ? t.customerDashboard.renewal6MonthsLabel : t.customerDashboard.renewalAnnualLabel}</p>
                           </div>
                           <div>
                             <p className="text-neutral-400">{t.founderDashboard.concernedProfile}</p>

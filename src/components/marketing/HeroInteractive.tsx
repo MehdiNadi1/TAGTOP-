@@ -140,8 +140,7 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                 <NfcCard3D
                   color="black"
                   branding="branded"
-                  businessName="YASSINE BENNANI"
-                  businessTitle="Atelier Atlas Design"
+                  businessName={currentLanguage === 'ar' ? 'ياسين بناني' : 'YASSINE BENNANI'}
                   showFlipButton={false}
                   interactiveTilt={false}
                   currentLanguage={currentLanguage}
@@ -170,10 +169,10 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                 {/* Profile Header in Phone */}
                 <div className="text-center space-y-1">
                   <div className="w-14 h-14 bg-gradient-to-tr from-amber-400 to-amber-200 rounded-full mx-auto flex items-center justify-center font-bold text-neutral-900 text-lg shadow-xs">
-                    YB
+                    {currentLanguage === 'ar' ? 'يب' : 'YB'}
                   </div>
                   <h3 className="text-sm font-bold text-neutral-900">
-                    Yassine Bennani
+                    {currentLanguage === 'ar' ? 'ياسين بناني' : 'Yassine Bennani'}
                   </h3>
                   <p className="text-[11px] text-neutral-600 font-medium">
                     {t.hero.sampleLocation}

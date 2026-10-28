@@ -5,9 +5,10 @@ import {
   NfcCardRegistryItem,
   BankTransferRenewal,
   SystemSettings,
+  Language,
 } from '../types';
 
-export const initialProfiles: BusinessProfile[] = [
+export const initialProfilesFR: BusinessProfile[] = [
   {
     id: 'prof-casablanca',
     ownerId: 'user-bennani',
@@ -97,7 +98,7 @@ export const initialProfiles: BusinessProfile[] = [
   {
     id: 'prof-rabat',
     ownerId: 'user-bennani',
-    ownerName: 'Yassine Bennani',
+    ownerName: 'Dr. Kenza El Amrani',
     ownerEmail: 'yassine.bennani@atlasdesign.ma',
     handle: 'dr-kenza-elamrani',
     displayName: 'Dr. Kenza El Amrani',
@@ -110,7 +111,7 @@ export const initialProfiles: BusinessProfile[] = [
     logoUrl: '',
     coverColor: '#0F766E',
     templateId: 'creative',
-    accessState: 'grace_period', // 14-day grace period
+    accessState: 'grace_period',
     expiryDate: '2026-10-21',
     graceDeadlineDate: '2026-11-04',
     phone: '+212 5 37 77 12 34',
@@ -160,7 +161,7 @@ export const initialProfiles: BusinessProfile[] = [
   {
     id: 'prof-marrakech',
     ownerId: 'user-bennani',
-    ownerName: 'Yassine Bennani',
+    ownerName: 'Omar Tazi',
     ownerEmail: 'yassine.bennani@atlasdesign.ma',
     handle: 'maison-tazi-botanique',
     displayName: 'Omar Tazi',
@@ -173,7 +174,7 @@ export const initialProfiles: BusinessProfile[] = [
     logoUrl: '',
     coverColor: '#78350F',
     templateId: 'artisan',
-    accessState: 'private_preview', // FREE PRIVATE PREVIEW!
+    accessState: 'private_preview',
     expiryDate: '2026-11-26',
     phone: '+212 6 70 88 99 00',
     whatsapp: '+212 6 70 88 99 00',
@@ -211,6 +212,424 @@ export const initialProfiles: BusinessProfile[] = [
     linkedCardCount: 0,
   },
 ];
+
+export const initialProfilesAR: BusinessProfile[] = [
+  {
+    id: 'prof-casablanca',
+    ownerId: 'user-bennani',
+    ownerName: 'ياسين بناني',
+    ownerEmail: 'yassine.bennani@atlasdesign.ma',
+    handle: 'yassine-bennani',
+    displayName: 'ياسين بناني',
+    jobTitle: 'المدير العام والمؤسس',
+    company: 'أتيليه أطلس ديزاين',
+    bio: 'استوديو للهندسة المعمارية الداخلية والسينوغرافيا المعاصرة في الدار البيضاء. ابتكار مساحات استثنائية للمنازل الراقية ومقرات الشركات.',
+    city: 'الدار البيضاء',
+    address: 'تقاطع شارع أنفا مع زنقة جان جوريس',
+    avatarUrl: '',
+    logoUrl: '',
+    coverColor: '#111827',
+    templateId: 'executive',
+    accessState: 'active',
+    expiryDate: '2027-04-20',
+    phone: '+212 6 61 24 88 90',
+    whatsapp: '+212 6 61 24 88 90',
+    email: 'contact@atlasdesign.ma',
+    website: 'https://atlasdesign.ma',
+    socials: {
+      linkedin: 'https://linkedin.com/in/yassine-bennani-atlas',
+      instagram: 'https://instagram.com/atlasdesign.ma',
+    },
+    products: [
+      {
+        id: 'serv-1',
+        name: 'دراسة تهيئة سكنية راقية',
+        category: 'هندسة معمارية',
+        priceMAD: 15000,
+        description: 'تصميم كامل للمخططات ثلاثية الأبعاد، اختيار المواد النبيلة والمتابعة المعمارية الدقيقة.',
+        isAvailable: true,
+      },
+      {
+        id: 'serv-2',
+        name: 'تصميم مساحات المكاتب والشركات',
+        category: 'مؤسسات',
+        priceMAD: 25000,
+        description: 'تحسين العزل الصوتي والملاءمة الوظيفية المريحة وتكريس الهوية البصرية للشركات.',
+        isAvailable: true,
+      },
+      {
+        id: 'serv-3',
+        name: 'استشارة تشخيصية ميدانية (ساعة واحدة)',
+        category: 'استشارات',
+        priceMAD: 1200,
+        description: 'زيارة استشارية وتوجيهية في الدار البيضاء، تحليل الإمكانيات وتقديم توصيات فورية.',
+        isAvailable: true,
+      },
+    ],
+    documents: [
+      {
+        id: 'doc-1',
+        title: 'كتالوج الإنجازات والمشاريع 2026 (PDF)',
+        size: '14.2 MB',
+        fileType: 'PDF',
+        url: '#',
+      },
+      {
+        id: 'doc-2',
+        title: 'دليل المواد والرخام المغربي',
+        size: '6.8 MB',
+        fileType: 'PDF',
+        url: '#',
+      },
+    ],
+    videos: [
+      {
+        id: 'vid-1',
+        title: 'جولة في فيلا معاصرة بدار بوعزة',
+        thumbnailUrl: '',
+        videoUrl: 'https://www.youtube.com',
+      },
+    ],
+    leadFields: [
+      { id: 'f_name', label: 'الاسم الكامل', type: 'text', required: true, enabled: true },
+      { id: 'f_phone', label: 'هاتف واتساب', type: 'tel', required: true, enabled: true },
+      { id: 'f_email', label: 'البريد الإلكتروني', type: 'email', required: false, enabled: true },
+      { id: 'f_company', label: 'الشركة أو المشروع', type: 'text', required: false, enabled: true },
+      { id: 'f_notes', label: 'تفاصيل المشروع', type: 'textarea', required: false, enabled: true },
+    ],
+    digitalTagtopBranding: true,
+    linkedCardCount: 1,
+  },
+  {
+    id: 'prof-rabat',
+    ownerId: 'user-bennani',
+    ownerName: 'د. كنزة العمراني',
+    ownerEmail: 'yassine.bennani@atlasdesign.ma',
+    handle: 'dr-kenza-elamrani',
+    displayName: 'د. كنزة العمراني',
+    jobTitle: 'طبيبة وجراحة أسنان أخصائية',
+    company: 'عيادة أقدال لطب الأسنان',
+    bio: 'عيادة متخصصة في طب وتجميل الابتسامة. علاجات متقدمة، قوالب تقويم شفافة وزراعة موجهة في الرباط.',
+    city: 'الرباط',
+    address: 'شارع فرنسا، أقدال',
+    avatarUrl: '',
+    logoUrl: '',
+    coverColor: '#0F766E',
+    templateId: 'creative',
+    accessState: 'grace_period',
+    expiryDate: '2026-10-21',
+    graceDeadlineDate: '2026-11-04',
+    phone: '+212 5 37 77 12 34',
+    whatsapp: '+212 6 62 11 22 33',
+    email: 'contact@dentaire-agdal.ma',
+    website: 'https://dentaire-agdal.ma',
+    socials: {
+      instagram: 'https://instagram.com/dentaire.agdal',
+    },
+    products: [
+      {
+        id: 'dent-1',
+        name: 'فحص تجميل الابتسامة وأشعة 3D',
+        category: 'تشخيص',
+        priceMAD: 600,
+        description: 'فحص فموي شامل، تصوير إشعاعي ومحاكاة رقمية ثلاثية الأبعاد لخطة العلاج.',
+        isAvailable: true,
+      },
+      {
+        id: 'dent-2',
+        name: 'علاج التقويم الشفاف غير المرئي',
+        category: 'تقويم الأسنان',
+        priceMAD: 18000,
+        description: 'قوالب شفافة مخصصة لتصحيح وضعية الأسنان بأقصى درجات الراحة والسرية.',
+        isAvailable: true,
+      },
+    ],
+    documents: [
+      {
+        id: 'doc-dent-1',
+        title: 'إرشادات العناية بصحة الفم والأسنان (PDF)',
+        size: '1.2 MB',
+        fileType: 'PDF',
+        url: '#',
+      },
+    ],
+    videos: [],
+    leadFields: [
+      { id: 'f_name', label: 'الاسم الكامل', type: 'text', required: true, enabled: true },
+      { id: 'f_phone', label: 'الهاتف', type: 'tel', required: true, enabled: true },
+      { id: 'f_email', label: 'البريد الإلكتروني', type: 'email', required: false, enabled: true },
+      { id: 'f_notes', label: 'سبب الاستشارة', type: 'textarea', required: false, enabled: true },
+    ],
+    digitalTagtopBranding: true,
+    linkedCardCount: 1,
+  },
+  {
+    id: 'prof-marrakech',
+    ownerId: 'user-bennani',
+    ownerName: 'عمر التازي',
+    ownerEmail: 'yassine.bennani@atlasdesign.ma',
+    handle: 'maison-tazi-botanique',
+    displayName: 'عمر التازي',
+    jobTitle: 'صانع تقليدي محترف ومؤسس',
+    company: 'دار التازي للنباتات والحرف',
+    bio: 'مستحضرات عناية وتجميل طبيعية استثنائية تعتمد على زيت الأركان العضوي الصافي من سوس ومياه الأزهار المقطرة من وادي دادس.',
+    city: 'مراكش',
+    address: 'شارع الحرية، كليز',
+    avatarUrl: '',
+    logoUrl: '',
+    coverColor: '#78350F',
+    templateId: 'artisan',
+    accessState: 'private_preview',
+    expiryDate: '2026-11-26',
+    phone: '+212 6 70 88 99 00',
+    whatsapp: '+212 6 70 88 99 00',
+    email: 'contact@tazibotanique.ma',
+    website: 'https://tazibotanique.ma',
+    socials: {
+      instagram: 'https://instagram.com/tazibotanique',
+    },
+    products: [
+      {
+        id: 'tazi-1',
+        name: 'إكسير زيت الأركان الصافي العضوي (100 مل)',
+        category: 'عناية بالبشرة',
+        priceMAD: 220,
+        description: 'عصر أول على البارد مع الالتزام بدعم تعاونيات النساء المغربيات.',
+        isAvailable: true,
+      },
+      {
+        id: 'tazi-2',
+        name: 'ماء الورد المقطر من قلعة مكونة (200 مل)',
+        category: 'ماء ورد نقي',
+        priceMAD: 110,
+        description: 'تقطير حرفي تقليدي ببخار الماء خالٍ من أي مواد مضافة أو كيميائية.',
+        isAvailable: true,
+      },
+    ],
+    documents: [],
+    videos: [],
+    leadFields: [
+      { id: 'f_name', label: 'الاسم الكامل', type: 'text', required: true, enabled: true },
+      { id: 'f_phone', label: 'الهاتف', type: 'tel', required: true, enabled: true },
+      { id: 'f_notes', label: 'طلب خاص', type: 'textarea', required: false, enabled: true },
+    ],
+    digitalTagtopBranding: true,
+    linkedCardCount: 0,
+  },
+];
+
+export const initialProfilesEN: BusinessProfile[] = [
+  {
+    id: 'prof-casablanca',
+    ownerId: 'user-bennani',
+    ownerName: 'Yassine Bennani',
+    ownerEmail: 'yassine.bennani@atlasdesign.ma',
+    handle: 'yassine-bennani',
+    displayName: 'Yassine Bennani',
+    jobTitle: 'Managing Director & Founder',
+    company: 'Atelier Atlas Design',
+    bio: 'Interior architecture and contemporary design studio based in Casablanca. Crafting bespoke spaces for luxury residences and corporate headquarters.',
+    city: 'Casablanca',
+    address: 'Corner Boulevard d’Anfa & Rue Jean Jaurès',
+    avatarUrl: '',
+    logoUrl: '',
+    coverColor: '#111827',
+    templateId: 'executive',
+    accessState: 'active',
+    expiryDate: '2027-04-20',
+    phone: '+212 6 61 24 88 90',
+    whatsapp: '+212 6 61 24 88 90',
+    email: 'contact@atlasdesign.ma',
+    website: 'https://atlasdesign.ma',
+    socials: {
+      linkedin: 'https://linkedin.com/in/yassine-bennani-atlas',
+      instagram: 'https://instagram.com/atlasdesign.ma',
+    },
+    products: [
+      {
+        id: 'serv-1',
+        name: 'High-end residential layout study',
+        category: 'Architecture',
+        priceMAD: 15000,
+        description: 'Complete 3D plan design, premium material selection, and architectural monitoring.',
+        isAvailable: true,
+      },
+      {
+        id: 'serv-2',
+        name: 'Corporate & office space design',
+        category: 'Corporate',
+        priceMAD: 25000,
+        description: 'Acoustic optimization, ergonomics, and spatial identity for enterprise headquarters.',
+        isAvailable: true,
+      },
+      {
+        id: 'serv-3',
+        name: '1-hour on-site diagnostic consultation',
+        category: 'Consulting',
+        priceMAD: 1200,
+        description: 'On-site consultation visit in Casablanca, potential analysis, and direct recommendations.',
+        isAvailable: true,
+      },
+    ],
+    documents: [
+      {
+        id: 'doc-1',
+        title: 'Project Portfolio 2026 (PDF)',
+        size: '14.2 MB',
+        fileType: 'PDF',
+        url: '#',
+      },
+      {
+        id: 'doc-2',
+        title: 'Guide to Moroccan Materials & Marbles',
+        size: '6.8 MB',
+        fileType: 'PDF',
+        url: '#',
+      },
+    ],
+    videos: [
+      {
+        id: 'vid-1',
+        title: 'Tour of a contemporary villa in Dar Bouazza',
+        thumbnailUrl: '',
+        videoUrl: 'https://www.youtube.com',
+      },
+    ],
+    leadFields: [
+      { id: 'f_name', label: 'Full Name', type: 'text', required: true, enabled: true },
+      { id: 'f_phone', label: 'WhatsApp Phone', type: 'tel', required: true, enabled: true },
+      { id: 'f_email', label: 'Email Address', type: 'email', required: false, enabled: true },
+      { id: 'f_company', label: 'Company or Project', type: 'text', required: false, enabled: true },
+      { id: 'f_notes', label: 'Project Details', type: 'textarea', required: false, enabled: true },
+    ],
+    digitalTagtopBranding: true,
+    linkedCardCount: 1,
+  },
+  {
+    id: 'prof-rabat',
+    ownerId: 'user-bennani',
+    ownerName: 'Dr. Kenza El Amrani',
+    ownerEmail: 'yassine.bennani@atlasdesign.ma',
+    handle: 'dr-kenza-elamrani',
+    displayName: 'Dr. Kenza El Amrani',
+    jobTitle: 'Specialist Dental Surgeon',
+    company: 'Agdal Dental Clinic',
+    bio: 'General and aesthetic smile clinic. Advanced dental care, invisible aligners, and guided implantology in Rabat.',
+    city: 'Rabat',
+    address: 'Avenue de France, Agdal',
+    avatarUrl: '',
+    logoUrl: '',
+    coverColor: '#0F766E',
+    templateId: 'creative',
+    accessState: 'grace_period',
+    expiryDate: '2026-10-21',
+    graceDeadlineDate: '2026-11-04',
+    phone: '+212 5 37 77 12 34',
+    whatsapp: '+212 6 62 11 22 33',
+    email: 'contact@dentaire-agdal.ma',
+    website: 'https://dentaire-agdal.ma',
+    socials: {
+      instagram: 'https://instagram.com/dentaire.agdal',
+    },
+    products: [
+      {
+        id: 'dent-1',
+        name: 'Smile aesthetic checkup & 3D scan',
+        category: 'Diagnostics',
+        priceMAD: 600,
+        description: 'Complete dental examination, 3D scanner, and digital treatment simulation.',
+        isAvailable: true,
+      },
+      {
+        id: 'dent-2',
+        name: 'Invisible aligner treatment (custom quote)',
+        category: 'Orthodontics',
+        priceMAD: 18000,
+        description: 'Custom clear aligners for discreet and comfortable tooth realignment.',
+        isAvailable: true,
+      },
+    ],
+    documents: [
+      {
+        id: 'doc-dent-1',
+        title: 'Post-treatment care & hygiene advice (PDF)',
+        size: '1.2 MB',
+        fileType: 'PDF',
+        url: '#',
+      },
+    ],
+    videos: [],
+    leadFields: [
+      { id: 'f_name', label: 'Full Name', type: 'text', required: true, enabled: true },
+      { id: 'f_phone', label: 'Phone', type: 'tel', required: true, enabled: true },
+      { id: 'f_email', label: 'Email', type: 'email', required: false, enabled: true },
+      { id: 'f_notes', label: 'Reason for Consultation', type: 'textarea', required: false, enabled: true },
+    ],
+    digitalTagtopBranding: true,
+    linkedCardCount: 1,
+  },
+  {
+    id: 'prof-marrakech',
+    ownerId: 'user-bennani',
+    ownerName: 'Omar Tazi',
+    ownerEmail: 'yassine.bennani@atlasdesign.ma',
+    handle: 'maison-tazi-botanique',
+    displayName: 'Omar Tazi',
+    jobTitle: 'Master Craftsman & Founder',
+    company: 'Maison Tazi Botanique',
+    bio: 'Exceptional natural cosmetic care made from pure organic Souss argan oil and Dades valley floral waters.',
+    city: 'Marrakech',
+    address: 'Rue de la Liberté, Guéliz',
+    avatarUrl: '',
+    logoUrl: '',
+    coverColor: '#78350F',
+    templateId: 'artisan',
+    accessState: 'private_preview',
+    expiryDate: '2026-11-26',
+    phone: '+212 6 70 88 99 00',
+    whatsapp: '+212 6 70 88 99 00',
+    email: 'contact@tazibotanique.ma',
+    website: 'https://tazibotanique.ma',
+    socials: {
+      instagram: 'https://instagram.com/tazibotanique',
+    },
+    products: [
+      {
+        id: 'tazi-1',
+        name: 'Certified Organic Pure Argan Elixir (100ml)',
+        category: 'Skincare',
+        priceMAD: 220,
+        description: 'First cold pressing in partnership with local women’s cooperatives.',
+        isAvailable: true,
+      },
+      {
+        id: 'tazi-2',
+        name: 'Rose Floral Water from Kelaat M’Gouna (200ml)',
+        category: 'Hydrosol',
+        priceMAD: 110,
+        description: 'Traditional steam distillation without chemical additives or synthetic perfume.',
+        isAvailable: true,
+      },
+    ],
+    documents: [],
+    videos: [],
+    leadFields: [
+      { id: 'f_name', label: 'Full Name', type: 'text', required: true, enabled: true },
+      { id: 'f_phone', label: 'Phone', type: 'tel', required: true, enabled: true },
+      { id: 'f_notes', label: 'Special Request', type: 'textarea', required: false, enabled: true },
+    ],
+    digitalTagtopBranding: true,
+    linkedCardCount: 0,
+  },
+];
+
+export const initialProfiles: BusinessProfile[] = initialProfilesFR;
+
+export const getLocalizedProfiles = (lang: Language): BusinessProfile[] => {
+  if (lang === 'ar') return initialProfilesAR;
+  if (lang === 'en') return initialProfilesEN;
+  return initialProfilesFR;
+};
 
 export const initialOrders: NfcCardOrder[] = [
   {
@@ -260,6 +679,130 @@ export const initialOrders: NfcCardOrder[] = [
   },
 ];
 
+
+export const initialLeadsFR: LeadSubmission[] = [
+  {
+    id: 'lead-01',
+    profileId: 'prof-casablanca',
+    profileName: 'Atelier Atlas Design',
+    name: 'Mehdi Chraibi',
+    phone: '+212 6 63 45 12 90',
+    email: 'mehdi.chraibi@groupe-maroc.ma',
+    company: 'Fintech Solutions Casablanca',
+    notes: 'Nous recherchons un architecte d’intérieur pour réaménager notre nouvel étage à Casablanca Finance City (350 m²).',
+    submittedAt: '2026-10-25T11:20:00Z',
+    promotionalConsent: false,
+  },
+  {
+    id: 'lead-02',
+    profileId: 'prof-casablanca',
+    profileName: 'Atelier Atlas Design',
+    name: 'Salma El Fassi',
+    phone: '+212 6 71 89 00 23',
+    email: 's.elfassi@gmail.com',
+    company: 'Particulier',
+    notes: 'Intéressée par une rénovation complète pour un duplex à Bouskoura.',
+    submittedAt: '2026-10-23T16:45:00Z',
+    promotionalConsent: true,
+  },
+  {
+    id: 'lead-03',
+    profileId: 'prof-rabat',
+    profileName: 'Cabinet Dentaire Agdal',
+    name: 'Karim Berrada',
+    phone: '+212 6 55 90 12 34',
+    email: 'karim.berrada@outlook.com',
+    company: 'Consultant',
+    notes: 'Demande de rendez-vous pour un bilan d’alignement dentaire invisible.',
+    submittedAt: '2026-10-22T09:10:00Z',
+    promotionalConsent: false,
+  },
+];
+
+export const initialLeadsAR: LeadSubmission[] = [
+  {
+    id: 'lead-01',
+    profileId: 'prof-casablanca',
+    profileName: 'أتيليه أطلس ديزاين',
+    name: 'المهدي الشرايبي',
+    phone: '+212 6 63 45 12 90',
+    email: 'mehdi.chraibi@groupe-maroc.ma',
+    company: 'حلول التكنولوجيا المالية - الدار البيضاء',
+    notes: 'نبحث عن مهندس ديكور داخلي لتهيئة طابقنا الجديد في القطب المالي للدار البيضاء (350 متر مربع).',
+    submittedAt: '2026-10-25T11:20:00Z',
+    promotionalConsent: false,
+  },
+  {
+    id: 'lead-02',
+    profileId: 'prof-casablanca',
+    profileName: 'أتيليه أطلس ديزاين',
+    name: 'سلمى الفاسي',
+    phone: '+212 6 71 89 00 23',
+    email: 's.elfassi@gmail.com',
+    company: 'خاص',
+    notes: 'مهتمة بالتجديد الكامل لشقة دوبلكس في بوسكورة.',
+    submittedAt: '2026-10-23T16:45:00Z',
+    promotionalConsent: true,
+  },
+  {
+    id: 'lead-03',
+    profileId: 'prof-rabat',
+    profileName: 'عيادة أقدال لطب الأسنان',
+    name: 'كريم برادة',
+    phone: '+212 6 55 90 12 34',
+    email: 'karim.berrada@outlook.com',
+    company: 'مستشار',
+    notes: 'طلب موعد لإجراء فحص تقويم الأسنان الشفاف.',
+    submittedAt: '2026-10-22T09:10:00Z',
+    promotionalConsent: false,
+  },
+];
+
+export const initialLeadsEN: LeadSubmission[] = [
+  {
+    id: 'lead-01',
+    profileId: 'prof-casablanca',
+    profileName: 'Atlas Design Studio',
+    name: 'Mehdi Chraibi',
+    phone: '+212 6 63 45 12 90',
+    email: 'mehdi.chraibi@groupe-maroc.ma',
+    company: 'Fintech Solutions Casablanca',
+    notes: 'We are looking for an interior architect to redesign our new floor at Casablanca Finance City (350 sqm).',
+    submittedAt: '2026-10-25T11:20:00Z',
+    promotionalConsent: false,
+  },
+  {
+    id: 'lead-02',
+    profileId: 'prof-casablanca',
+    profileName: 'Atlas Design Studio',
+    name: 'Salma El Fassi',
+    phone: '+212 6 71 89 00 23',
+    email: 's.elfassi@gmail.com',
+    company: 'Private Client',
+    notes: 'Interested in a full renovation for a duplex apartment in Bouskoura.',
+    submittedAt: '2026-10-23T16:45:00Z',
+    promotionalConsent: true,
+  },
+  {
+    id: 'lead-03',
+    profileId: 'prof-rabat',
+    profileName: 'Agdal Dental Clinic',
+    name: 'Karim Berrada',
+    phone: '+212 6 55 90 12 34',
+    email: 'karim.berrada@outlook.com',
+    company: 'Consultant',
+    notes: 'Appointment request for an invisible dental alignment checkup.',
+    submittedAt: '2026-10-22T09:10:00Z',
+    promotionalConsent: false,
+  },
+];
+
+export const getLocalizedLeads = (lang: Language): LeadSubmission[] => {
+  if (lang === 'ar') return initialLeadsAR;
+  if (lang === 'en') return initialLeadsEN;
+  return initialLeadsFR;
+};
+
 export const initialLeads: LeadSubmission[] = [
   {
     id: 'lead-01',
@@ -271,7 +814,7 @@ export const initialLeads: LeadSubmission[] = [
     company: 'Fintech Solutions Casablanca',
     notes: 'Nous recherchons un architecte d’intérieur pour réaménager notre nouvel étage à Casablanca Finance City (350 m²).',
     submittedAt: '2026-10-25T11:20:00Z',
-    promotionalConsent: false, // distinct from inquiry consent
+    promotionalConsent: false,
   },
   {
     id: 'lead-02',
@@ -334,7 +877,7 @@ export const initialBankTransfers: BankTransferRenewal[] = [
     customerName: 'Dr. Kenza El Amrani',
     customerPhone: '+212 6 62 11 22 33',
     amountMAD: 99,
-    periodDescription: 'Renouvellement 6 mois supplémentaires (Étape 2)',
+    periodDescription: 'Renouvellement 6 mois supplémentaires (99 MAD)',
     receiptNumber: 'CIH-VIR-20261025-4819',
     submittedAt: '2026-10-25T15:00:00Z',
     status: 'pending',
@@ -347,7 +890,7 @@ export const initialBankTransfers: BankTransferRenewal[] = [
     customerName: 'Yassine Bennani',
     customerPhone: '+212 6 61 24 88 90',
     amountMAD: 99,
-    periodDescription: 'Renouvellement 6 mois supplémentaires (Étape 2)',
+    periodDescription: 'Renouvellement 6 mois supplémentaires (99 MAD)',
     receiptNumber: 'AWB-VIR-20260415-1092',
     submittedAt: '2026-04-15T10:00:00Z',
     status: 'approved',
@@ -361,8 +904,20 @@ export const initialSettings: SystemSettings = {
   starterUnbrandedPriceMAD: 349,
   renewalSixMonthsMAD: 99,
   renewalAnnualMAD: 199,
-  woodenStandEnabled: false, // Disabled at launch as instructed
+  woodenStandEnabled: false,
   woodenStandPriceMAD: 0,
   supportWhatsAppNumber: '+212 6 00 00 00 00',
   bankAccountDetails: 'Banque : CIH Bank Maroc\nRIB : 230 780 0000000000000000 12\nTitulaire : TAGTOP SARL AU\nMotif : Indiquer le nom de votre profil ou numéro de commande',
+};
+
+export const getLocalizedSettings = (lang: Language): SystemSettings => {
+  return {
+    ...initialSettings,
+    bankAccountDetails:
+      lang === 'ar'
+        ? 'البنك: CIH Bank المغرب\nالحساب البنكي (RIB): 230 780 0000000000000000 12\nصاحب الحساب: TAGTOP SARL AU\nالسبب: كتابة اسم ملفك أو رقم الطلب'
+        : lang === 'en'
+        ? 'Bank: CIH Bank Morocco\nRIB: 230 780 0000000000000000 12\nAccount Holder: TAGTOP SARL AU\nReference: State your profile name or order ID'
+        : initialSettings.bankAccountDetails,
+  };
 };
