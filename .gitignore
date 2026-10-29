@@ -8,3 +8,5 @@ scratch/
 .env*
 !.env.example
 !scripts/.env.test.example
+supabase/.temp/
+supabase/backups/
