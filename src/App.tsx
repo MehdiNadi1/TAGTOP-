@@ -323,7 +323,7 @@ export default function App() {
   }, [currentSubPage, currentView]);
 
   // Order Handlers
-  const handleOrderCreated = async (newOrder: NfcCardOrder) => {
+  const handleOrderCreated = async (newOrder: NfcCardOrder): Promise<NfcCardOrder> => {
     try {
       const savedOrder = await dataAdapter.createOrder(newOrder, currentUser?.id);
       setOrders((prev) => [savedOrder, ...prev]);
@@ -331,14 +331,16 @@ export default function App() {
       // If profile was in private preview, mark as order_pending
       setProfiles((prev) =>
         prev.map((p) => {
-          if (p.id === newOrder.profileId && p.accessState === 'private_preview') {
+          if (p.id === (savedOrder.profileId || newOrder.profileId) && p.accessState === 'private_preview') {
             return { ...p, accessState: 'order_pending' as const };
           }
           return p;
         })
       );
+      return savedOrder;
     } catch (err) {
       console.error('[TAGTOP App] Order creation failed:', err);
+      throw err;
     }
   };
 

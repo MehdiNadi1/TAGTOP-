@@ -76,8 +76,7 @@ export const orderService = {
       };
     }
 
-    const payload = {
-      id: order.id,
+    const payload: Record<string, any> = {
       customer_id: customerId,
       customer_name: order.customerName,
       customer_phone: order.customerPhone,
@@ -100,6 +99,11 @@ export const orderService = {
       proof_approved: order.proofApproved,
       card_uid: order.cardUid || null,
     };
+
+    // If an authoritative non-temporary ID was provided, preserve it; otherwise allow Supabase/Postgres to generate 'ord-<10>'
+    if (order.id && !order.id.startsWith('temp-') && !order.id.startsWith('ord-draft-') && !order.id.startsWith('ord-tag-')) {
+      payload.id = order.id;
+    }
 
     const { data, error } = await (supabase.from('orders') as any)
       .insert(payload)

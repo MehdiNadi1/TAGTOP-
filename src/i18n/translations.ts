@@ -229,6 +229,8 @@ export interface Translations {
     codNotice: string;
     proofNoticeDesc: string;
     submitOrder: string;
+    submittingOrder: string;
+    orderSubmitError: string;
     orderSuccessTitle: string;
     orderSuccessDesc: string;
     orderNumberLabel: string;
@@ -927,6 +929,8 @@ export const translations: Record<Language, Translations> = {
       codNotice: 'Paiement à la livraison (Cash on Delivery) lors de la réception de votre colis physique.',
       proofNoticeDesc: 'Notre fondateur prépare votre bon à tirer (BAT). L’impression ne démarre qu’après votre accord explicite sur WhatsApp.',
       submitOrder: 'Confirmer la commande (Paiement à la livraison)',
+      submittingOrder: 'Validation de la commande en cours...',
+      orderSubmitError: 'Une erreur est survenue lors de l\'enregistrement de votre commande. Veuillez réessayer.',
       orderSuccessTitle: 'Commande enregistrée avec succès',
       orderSuccessDesc: 'Votre demande a été transmise à l’équipe TAGTOP. Nous vous contacterons pour valider votre maquette avant impression.',
       orderNumberLabel: 'Numéro de commande :',
@@ -1623,6 +1627,8 @@ export const translations: Record<Language, Translations> = {
       codNotice: 'الدفع نقداً عند الاستلام (COD) عند وصول البطاقة إلى عنوانك.',
       proofNoticeDesc: 'يقوم المؤسس بإعداد مسودة الطباعة وإرسالها لك. لن تبدأ الطباعة إلا بعد موافقتك الصريحة عبر واتساب.',
       submitOrder: 'تأكيد الطلب (الدفع عند الاستلام)',
+      submittingOrder: 'جاري تأكيد وتسجيل الطلب...',
+      orderSubmitError: 'حدث خطأ أثناء معالجة الطلب. يرجى المحاولة مرة أخرى.',
       orderSuccessTitle: 'تم تسجيل طلبك بنجاح',
       orderSuccessDesc: 'سيتواصل معك فريق TAGTOP عبر واتساب لمراجعة التصميم النهائي قبل الطباعة.',
       orderNumberLabel: 'رقم الطلب :',
@@ -2319,6 +2325,8 @@ export const translations: Record<Language, Translations> = {
       codNotice: 'Cash on delivery (COD) upon receiving your package.',
       proofNoticeDesc: 'Our founder prepares your layout proof for WhatsApp confirmation before any card is printed.',
       submitOrder: 'Confirm Order (Cash on Delivery)',
+      submittingOrder: 'Submitting and confirming your order...',
+      orderSubmitError: 'An error occurred while placing your order. Please try again.',
       orderSuccessTitle: 'Order Received Successfully',
       orderSuccessDesc: 'Your request has been logged. TAGTOP will contact you via WhatsApp for final design proof approval.',
       orderNumberLabel: 'Order number:',

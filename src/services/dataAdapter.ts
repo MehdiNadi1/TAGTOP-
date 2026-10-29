@@ -225,8 +225,14 @@ export const dataAdapter = {
     }
 
     // Explicit Demo Mode
-    addStoredOrder(order);
-    return order;
+    const persistedOrder: NfcCardOrder = {
+      ...order,
+      id: order.id && !order.id.startsWith('temp-') && !order.id.startsWith('ord-draft-') && !order.id.startsWith('ord-tag-')
+        ? order.id
+        : `ord-${Math.random().toString(36).substring(2, 12)}`,
+    };
+    addStoredOrder(persistedOrder);
+    return persistedOrder;
   },
 
   /**
