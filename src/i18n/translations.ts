@@ -617,6 +617,53 @@ export interface Translations {
     proofModificationSentAlert: string;
     backToSite: string;
     livePreviewOf: string;
+    profileNotFound: string;
+    profilePrivateOrNotFound: string;
+    profileLoading: string;
+    backToHome: string;
+  };
+  auth: {
+    signInTitle: string;
+    signInSubtitle: string;
+    signUpTitle: string;
+    signUpSubtitle: string;
+    signInTab: string;
+    signUpTab: string;
+    emailLabel: string;
+    passwordLabel: string;
+    fullNameLabel: string;
+    phoneLabel: string;
+    preferredLanguageLabel: string;
+    signInBtn: string;
+    signUpBtn: string;
+    signingIn: string;
+    signingUp: string;
+    signOutBtn: string;
+    signingOut: string;
+    noAccountPrompt: string;
+    hasAccountPrompt: string;
+    forgotPassword: string;
+    privatePreviewBadge: string;
+    loginSuccess: string;
+    signUpSuccess: string;
+    invalidCredentials: string;
+    passwordTooShort: string;
+    requiredFields: string;
+    rateLimitExceeded: string;
+    sessionLoading: string;
+    noProfilesTitle: string;
+    noProfilesSubtitle: string;
+    createFirstProfileBtn: string;
+    createNewProfileBtn: string;
+    createProfileModalTitle: string;
+    createProfileModalSubtitle: string;
+    handleLabel: string;
+    handleHint: string;
+    handlePlaceholder: string;
+    creatingProfile: string;
+    createProfileSuccess: string;
+    handleAlreadyExists: string;
+    profileCreatedPreviewNote: string;
   };
   footer: {
     mission: string;
@@ -1254,6 +1301,53 @@ export const translations: Record<Language, Translations> = {
       proofModificationSentAlert: 'Vos remarques ont été transmises au fondateur pour modification du BAT.',
       backToSite: '← Retour au site TAGTOP',
       livePreviewOf: 'Aperçu en direct du profil',
+      profileNotFound: 'Profil introuvable',
+      profilePrivateOrNotFound: 'Ce profil est actuellement en mode aperçu privé ou n’existe pas.',
+      profileLoading: 'Chargement du profil sécurisé...',
+      backToHome: 'Retour à l’accueil',
+    },
+    auth: {
+      signInTitle: 'Connexion à votre Espace Client',
+      signInSubtitle: 'Gérez vos cartes NFC et votre profil professionnel à tout moment',
+      signUpTitle: 'Créer votre compte TAGTOP',
+      signUpSubtitle: 'Démarrez dès maintenant avec un aperçu privé gratuit de votre profil',
+      signInTab: 'Connexion',
+      signUpTab: 'Créer un compte',
+      emailLabel: 'Adresse e-mail',
+      passwordLabel: 'Mot de passe',
+      fullNameLabel: 'Nom complet',
+      phoneLabel: 'Numéro de téléphone',
+      preferredLanguageLabel: 'Langue préférée',
+      signInBtn: 'Se connecter',
+      signUpBtn: 'Créer mon compte',
+      signingIn: 'Connexion en cours...',
+      signingUp: 'Création du compte...',
+      signOutBtn: 'Déconnexion',
+      signingOut: 'Déconnexion en cours...',
+      noAccountPrompt: 'Pas encore de compte ? Créez votre aperçu gratuit',
+      hasAccountPrompt: 'Déjà un compte ? Se connecter',
+      forgotPassword: 'Mot de passe oublié ?',
+      privatePreviewBadge: 'Aperçu privé gratuit inclus · Sans engagement',
+      loginSuccess: 'Connexion réussie',
+      signUpSuccess: 'Compte créé avec succès ! Veuillez vérifier votre boîte e-mail.',
+      invalidCredentials: 'Adresse e-mail ou mot de passe incorrect',
+      passwordTooShort: 'Le mot de passe doit comporter au moins 6 caractères',
+      requiredFields: 'Veuillez remplir tous les champs obligatoires',
+      rateLimitExceeded: 'Limite d’envoi d’e-mails atteinte. Veuillez réessayer plus tard ou vous connecter.',
+      sessionLoading: 'Vérification de votre session...',
+      noProfilesTitle: 'Aucun profil numérique',
+      noProfilesSubtitle: 'Créez votre premier profil professionnel en mode aperçu privé gratuit.',
+      createFirstProfileBtn: 'Créer mon premier profil',
+      createNewProfileBtn: 'Nouveau profil',
+      createProfileModalTitle: 'Créer un nouveau profil numérique',
+      createProfileModalSubtitle: 'Votre profil sera créé en mode Aperçu Privé. La commande d’une carte physique permettra de le publier.',
+      handleLabel: 'Identifiant unique (slug URL)',
+      handleHint: 'Votre lien sera : tagtop.ma/#p/',
+      handlePlaceholder: 'mon-entreprise',
+      creatingProfile: 'Création en cours...',
+      createProfileSuccess: 'Profil créé avec succès !',
+      handleAlreadyExists: 'Cet identifiant est déjà utilisé. Veuillez en choisir un autre.',
+      profileCreatedPreviewNote: 'Profil créé en mode Aperçu Privé. Vous pourrez commander une carte physique pour le publier.',
     },
     footer: {
       mission: 'Cartes de visite NFC d\'exception et profils professionnels digitaux pour les entrepreneurs et entreprises au Maroc.',
@@ -1889,6 +1983,53 @@ export const translations: Record<Language, Translations> = {
       proofModificationSentAlert: 'تم إرسال ملاحظاتك إلى المؤسس لتعديل النموذج الأولي.',
       backToSite: '← العودة لموقع TAGTOP',
       livePreviewOf: 'معاينة حية لملف',
+      profileNotFound: 'الملف غير موجود',
+      profilePrivateOrNotFound: 'هذا الملف في وضع المعاينة الخاصة أو غير متوفر حالياً.',
+      profileLoading: 'جاري تحميل الملف الآمن...',
+      backToHome: 'العودة للرئيسية',
+    },
+    auth: {
+      signInTitle: 'تسجيل الدخول إلى حسابك',
+      signInSubtitle: 'أدر بطاقاتك الذكية وملفك المهني في أي وقت',
+      signUpTitle: 'إنشاء حساب جديد في TAGTOP',
+      signUpSubtitle: 'ابدأ الآن بإنشاء معاينة خاصة مجانية لملفك الرقمي',
+      signInTab: 'تسجيل الدخول',
+      signUpTab: 'حساب جديد',
+      emailLabel: 'البريد الإلكتروني',
+      passwordLabel: 'كلمة المرور',
+      fullNameLabel: 'الاسم الكامل',
+      phoneLabel: 'رقم الهاتف',
+      preferredLanguageLabel: 'اللغة المفضلة',
+      signInBtn: 'تسجيل الدخول',
+      signUpBtn: 'إنشاء حساب',
+      signingIn: 'جاري تسجيل الدخول...',
+      signingUp: 'جاري إنشاء الحساب...',
+      signOutBtn: 'تسجيل الخروج',
+      signingOut: 'جاري تسجيل الخروج...',
+      noAccountPrompt: 'ليس لديك حساب؟ أنشئ حسابك الآن',
+      hasAccountPrompt: 'لديك حساب بالفعل؟ سجل دخولك',
+      forgotPassword: 'نسيت كلمة المرور؟',
+      privatePreviewBadge: 'معاينة خاصة مجانية متضمنة · بدون التزام',
+      loginSuccess: 'تم تسجيل الدخول بنجاح',
+      signUpSuccess: 'تم إنشاء الحساب بنجاح! يرجى التحقق من بريدك الإلكتروني.',
+      invalidCredentials: 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
+      passwordTooShort: 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل',
+      requiredFields: 'يرجى ملء جميع الحقول المطلوبة',
+      rateLimitExceeded: 'تم تجاوز حد إرسال الرسائل، يرجى المحاولة لاحقاً أو تسجيل الدخول',
+      sessionLoading: 'جاري التحقق من الجلسة...',
+      noProfilesTitle: 'لا يوجد ملف شخصي رقمي حتى الآن',
+      noProfilesSubtitle: 'أنشئ أول ملف تعريفي لك في وضع المعاينة الخاصة المجانية.',
+      createFirstProfileBtn: 'إنشاء ملفي التعريفي الأول',
+      createNewProfileBtn: 'إضافة ملف جديد',
+      createProfileModalTitle: 'إنشاء ملف شخصي رقمي جديد',
+      createProfileModalSubtitle: 'ملفك الرقمي سيكون في وضع المعاينة الخاصة حتى طلب البطاقة وتفعيلها.',
+      handleLabel: 'المعرف الرقمي (الرابط)',
+      handleHint: 'رابط ملفك سيكون: tagtop.ma/#p/',
+      handlePlaceholder: 'ism-al-charika',
+      creatingProfile: 'جاري إنشاء الملف...',
+      createProfileSuccess: 'تم إنشاء الملف الشخصي بنجاح!',
+      handleAlreadyExists: 'هذا المعرف الرقمي مستخدم بالفعل، يرجى اختيار معرف آخر.',
+      profileCreatedPreviewNote: 'تم إنشاء الملف في وضع المعاينة الخاصة. لربطه ببطاقة NFC حقيقية، يمكنك طلب بطاقة في أي وقت.',
     },
     footer: {
       mission: 'بطاقات عمل ذكية فاخرة بتقنية NFC وملفات مهنية رقمية لرواد الأعمال والشركات في المغرب.',
@@ -2524,6 +2665,53 @@ export const translations: Record<Language, Translations> = {
       proofModificationSentAlert: 'Your remarks have been sent to the founder for proof revisions.',
       backToSite: '← Back to TAGTOP website',
       livePreviewOf: 'Live preview of profile',
+      profileNotFound: 'Profile Not Found',
+      profilePrivateOrNotFound: 'This profile is currently in private preview mode or does not exist.',
+      profileLoading: 'Loading secure profile...',
+      backToHome: 'Back to Home',
+    },
+    auth: {
+      signInTitle: 'Sign In to your Client Area',
+      signInSubtitle: 'Manage your smart NFC cards and digital profile anytime',
+      signUpTitle: 'Create your TAGTOP Account',
+      signUpSubtitle: 'Start right now with a free private preview of your profile',
+      signInTab: 'Sign In',
+      signUpTab: 'Create Account',
+      emailLabel: 'Email Address',
+      passwordLabel: 'Password',
+      fullNameLabel: 'Full Name',
+      phoneLabel: 'Phone Number',
+      preferredLanguageLabel: 'Preferred Language',
+      signInBtn: 'Sign In',
+      signUpBtn: 'Create Account',
+      signingIn: 'Signing in...',
+      signingUp: 'Creating account...',
+      signOutBtn: 'Sign Out',
+      signingOut: 'Signing out...',
+      noAccountPrompt: 'Don\'t have an account? Create one now',
+      hasAccountPrompt: 'Already have an account? Sign In',
+      forgotPassword: 'Forgot password?',
+      privatePreviewBadge: 'Free private preview included · No commitment',
+      loginSuccess: 'Signed in successfully',
+      signUpSuccess: 'Account created successfully! Please check your email.',
+      invalidCredentials: 'Invalid email or password',
+      passwordTooShort: 'Password must be at least 6 characters',
+      requiredFields: 'Please fill in all required fields',
+      rateLimitExceeded: 'Email rate limit reached. Please try again later or sign in.',
+      sessionLoading: 'Checking your session...',
+      noProfilesTitle: 'No digital profile yet',
+      noProfilesSubtitle: 'Create your first digital profile in free private preview mode.',
+      createFirstProfileBtn: 'Create My First Profile',
+      createNewProfileBtn: 'Add New Profile',
+      createProfileModalTitle: 'Create a New Digital Profile',
+      createProfileModalSubtitle: 'Your profile will be created in Private Preview mode until an NFC card is ordered and verified.',
+      handleLabel: 'Digital Identifier (URL slug)',
+      handleHint: 'Your profile URL will be: tagtop.ma/#p/',
+      handlePlaceholder: 'your-business',
+      creatingProfile: 'Creating profile...',
+      createProfileSuccess: 'Profile created successfully!',
+      handleAlreadyExists: 'This handle is already taken. Please choose another one.',
+      profileCreatedPreviewNote: 'Profile created in Private Preview mode. You can order a physical NFC card anytime to publish it.',
     },
     footer: {
       mission: 'Exceptional NFC business cards and digital professional profiles for entrepreneurs and businesses in Morocco.',

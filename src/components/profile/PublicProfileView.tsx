@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BusinessProfile, Language, LeadSubmission } from '../../types';
 import { translations } from '../../i18n/translations';
 import { downloadVCard, normalizeWhatsAppNumber } from '../../utils/pricingAndAccess';
-import { recordAnalyticsEvent } from '../../services/storage';
+import { dataAdapter } from '../../services/dataAdapter';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import {
   Phone,
@@ -50,6 +50,11 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
     overrideExpiredState || profile.accessState === 'expired_suspended'
   );
 
+  useEffect(() => {
+    setActiveTemplate(profile.templateId);
+    setIsSimulatingExpired(overrideExpiredState || profile.accessState === 'expired_suspended');
+  }, [profile.id, profile.templateId, profile.accessState, overrideExpiredState]);
+
   // Lead Form State
   const [leadName, setLeadName] = useState('');
   const [leadPhone, setLeadPhone] = useState('');
@@ -64,7 +69,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
   // Handle Save Contact (vCard RFC 6350 with UTF-8 support)
   const handleSaveContact = () => {
     downloadVCard(profile);
-    recordAnalyticsEvent(profile.id, 'vcard');
+    dataAdapter.recordProfileEvent(profile.id, 'vcard');
   };
 
   const handleShare = () => {
@@ -82,7 +87,7 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
   };
 
   const handleWhatsAppClick = () => {
-    recordAnalyticsEvent(profile.id, 'whatsapp');
+    dataAdapter.recordProfileEvent(profile.id, 'whatsapp');
   };
 
   const handleSubmitLead = (e: React.FormEvent) => {

@@ -49,7 +49,8 @@ function mapRowToBusinessProfile(row: ProfileRow, ownerEmail = ''): BusinessProf
 export const profileService = {
   /**
    * Retrieves public profile via get_public_profile RPC.
-   * Guarantees that private preview profiles are hidden and suspended profiles have private data redacted.
+   * Guarantees that private preview profiles are hidden from visitors
+   * and suspended profiles have private contact/product data redacted.
    */
   async getPublicProfile(handleOrId: string): Promise<BusinessProfile | null> {
     if (!supabase) return null;
@@ -71,6 +72,9 @@ export const profileService = {
     }
   },
 
+  /**
+   * Retrieves all profiles owned by an authenticated customer.
+   */
   async getCustomerProfiles(ownerId: string): Promise<BusinessProfile[]> {
     if (!supabase) return [];
 
@@ -88,45 +92,116 @@ export const profileService = {
     return (data as ProfileRow[]).map((row) => mapRowToBusinessProfile(row));
   },
 
-  async upsertProfile(profile: BusinessProfile): Promise<BusinessProfile> {
+  /**
+   * Creates a new customer profile in private_preview mode.
+   * The database immutability trigger automatically sets:
+   * - owner_id = auth.uid()
+   * - access_state = 'private_preview'
+   * - expiry_date = CURRENT_DATE + 180 days
+   */
+  async createProfile(profile: Partial<BusinessProfile>): Promise<BusinessProfile> {
     if (!supabase) throw new Error('Supabase client not configured');
 
-    const payload = {
-      id: profile.id,
-      owner_id: profile.ownerId,
-      handle: profile.handle,
-      display_name: profile.displayName,
-      job_title: profile.jobTitle,
-      company: profile.company,
-      bio: profile.bio,
-      city: profile.city,
-      address: profile.address,
-      avatar_url: profile.avatarUrl,
-      logo_url: profile.logoUrl,
+    const cleanHandle = (profile.handle || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '-');
+
+    if (!cleanHandle) {
+      throw new Error('A valid handle/slug is required for the profile');
+    }
+
+    const payload: Record<string, any> = {
+      handle: cleanHandle,
+      display_name: (profile.displayName || '').trim() || 'Mon Profil TAGTOP',
+      job_title: (profile.jobTitle || '').trim(),
+      company: (profile.company || '').trim(),
+      bio: (profile.bio || '').trim(),
+      city: (profile.city || '').trim() || 'Casablanca',
+      address: (profile.address || '').trim(),
+      avatar_url: (profile.avatarUrl || '').trim(),
+      logo_url: (profile.logoUrl || '').trim(),
+      cover_color: profile.coverColor || '#111827',
+      template_id: profile.templateId || 'executive',
+      phone: (profile.phone || '').trim(),
+      whatsapp: (profile.whatsapp || '').trim(),
+      email: (profile.email || '').trim(),
+      website: (profile.website || '').trim(),
+      socials: profile.socials || {},
+      products: profile.products || [],
+      documents: profile.documents || [],
+      videos: profile.videos || [],
+      lead_fields: profile.leadFields || [],
+      digital_tagtop_branding: profile.digitalTagtopBranding ?? true,
+    };
+
+    if (profile.id && profile.id.startsWith('prof-')) {
+      payload.id = profile.id;
+    }
+
+    const { data, error } = await (supabase.from('business_profiles') as any)
+      .insert(payload)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return mapRowToBusinessProfile(data as ProfileRow);
+  },
+
+  /**
+   * Updates customer-editable fields on an existing profile.
+   * Excludes immutable system columns (access_state, expiry_date, owner_id, etc.)
+   * to strictly comply with database immutability triggers.
+   */
+  async updateProfile(profile: BusinessProfile): Promise<BusinessProfile> {
+    if (!supabase) throw new Error('Supabase client not configured');
+
+    const cleanHandle = (profile.handle || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '-');
+
+    const updatePayload = {
+      handle: cleanHandle,
+      display_name: profile.displayName.trim(),
+      job_title: profile.jobTitle.trim(),
+      company: profile.company.trim(),
+      bio: profile.bio.trim(),
+      city: profile.city.trim(),
+      address: profile.address.trim(),
+      avatar_url: profile.avatarUrl.trim(),
+      logo_url: profile.logoUrl.trim(),
       cover_color: profile.coverColor,
       template_id: profile.templateId,
-      access_state: profile.accessState,
-      expiry_date: profile.expiryDate,
-      grace_deadline_date: profile.graceDeadlineDate || null,
-      phone: profile.phone,
-      whatsapp: profile.whatsapp,
-      email: profile.email,
-      website: profile.website,
+      phone: profile.phone.trim(),
+      whatsapp: profile.whatsapp.trim(),
+      email: profile.email.trim(),
+      website: profile.website.trim(),
       socials: profile.socials as any,
       products: profile.products as any,
       documents: profile.documents as any,
       videos: profile.videos as any,
       lead_fields: profile.leadFields as any,
       digital_tagtop_branding: profile.digitalTagtopBranding,
-      linked_card_count: profile.linkedCardCount,
     };
 
     const { data, error } = await (supabase.from('business_profiles') as any)
-      .upsert(payload)
+      .update(updatePayload)
+      .eq('id', profile.id)
       .select()
       .single();
 
     if (error) throw error;
     return mapRowToBusinessProfile(data as ProfileRow);
+  },
+
+  /**
+   * Safe upsert routing: delegates to updateProfile if existing, or createProfile if new.
+   */
+  async upsertProfile(profile: BusinessProfile): Promise<BusinessProfile> {
+    if (profile.id && !profile.id.startsWith('new-')) {
+      return this.updateProfile(profile);
+    }
+    return this.createProfile(profile);
   },
 };

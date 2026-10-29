@@ -18,11 +18,13 @@ import { orderService } from './backend/orderService';
 import { leadService, cardService } from './backend/leadService';
 import {
   getStoredProfiles,
+  updateStoredProfile,
   getStoredRegistry,
   addStoredLead,
   addStoredOrder,
   saveOrders,
   getStoredOrders,
+  getStoredLeads,
   recordAnalyticsEvent as recordLocalAnalyticsEvent,
 } from './storage';
 
@@ -56,7 +58,7 @@ export const dataAdapter = {
   },
 
   /**
-   * Retrieves public profile presentation.
+   * Retrieves public profile presentation via secure RPC.
    */
   async getPublicProfile(handleOrId: string, lang: Language = 'fr'): Promise<BusinessProfile | null> {
     if (isSupabaseConfigured()) {
@@ -66,6 +68,99 @@ export const dataAdapter = {
     // Explicit Demo Mode Fallback
     const profiles = getStoredProfiles(lang);
     return profiles.find((p) => p.handle === handleOrId || p.id === handleOrId) || null;
+  },
+
+  /**
+   * Retrieves all profiles owned by an authenticated customer.
+   */
+  async getCustomerProfiles(ownerId: string, lang: Language = 'fr'): Promise<BusinessProfile[]> {
+    if (isSupabaseConfigured()) {
+      return await profileService.getCustomerProfiles(ownerId);
+    }
+
+    // Explicit Demo Mode Fallback
+    return getStoredProfiles(lang);
+  },
+
+  /**
+   * Creates a new customer profile in private preview mode.
+   */
+  async createProfile(profile: Partial<BusinessProfile>): Promise<BusinessProfile> {
+    if (isSupabaseConfigured()) {
+      return await profileService.createProfile(profile);
+    }
+
+    // Explicit Demo Mode Fallback
+    const newProfile: BusinessProfile = {
+      id: profile.id || `prof-${Date.now().toString(36)}`,
+      ownerId: profile.ownerId || 'demo-customer',
+      ownerName: profile.displayName || 'Demo User',
+      ownerEmail: profile.email || 'customer@example.com',
+      handle: profile.handle || `demo-${Date.now().toString(36)}`,
+      displayName: profile.displayName || 'Demo Profile',
+      jobTitle: profile.jobTitle || '',
+      company: profile.company || '',
+      bio: profile.bio || '',
+      city: profile.city || 'Casablanca',
+      address: profile.address || '',
+      avatarUrl: profile.avatarUrl || '',
+      logoUrl: profile.logoUrl || '',
+      coverColor: profile.coverColor || '#18181b',
+      templateId: profile.templateId || 'executive',
+      accessState: 'private_preview',
+      expiryDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      phone: profile.phone || '',
+      whatsapp: profile.whatsapp || '',
+      email: profile.email || '',
+      website: profile.website || '',
+      socials: profile.socials || {},
+      products: profile.products || [],
+      documents: profile.documents || [],
+      videos: profile.videos || [],
+      leadFields: profile.leadFields || [],
+      digitalTagtopBranding: profile.digitalTagtopBranding ?? true,
+      linkedCardCount: 0,
+    };
+    updateStoredProfile(newProfile);
+    return newProfile;
+  },
+
+  /**
+   * Updates an existing profile.
+   */
+  async updateProfile(profile: BusinessProfile): Promise<BusinessProfile> {
+    if (isSupabaseConfigured()) {
+      return await profileService.updateProfile(profile);
+    }
+
+    // Explicit Demo Mode Fallback
+    updateStoredProfile(profile);
+    return profile;
+  },
+
+  /**
+   * Retrieves orders for an authenticated customer.
+   */
+  async getCustomerOrders(customerId?: string, email?: string): Promise<NfcCardOrder[]> {
+    if (isSupabaseConfigured()) {
+      return await orderService.getCustomerOrders(customerId, email);
+    }
+
+    // Explicit Demo Mode Fallback
+    return getStoredOrders();
+  },
+
+  /**
+   * Retrieves leads collected by an authenticated customer's profile.
+   */
+  async getProfileLeads(profileId: string): Promise<LeadSubmission[]> {
+    if (isSupabaseConfigured()) {
+      return await leadService.getProfileLeads(profileId);
+    }
+
+    // Explicit Demo Mode Fallback
+    const allLeads = getStoredLeads();
+    return allLeads.filter((l) => l.profileId === profileId);
   },
 
   /**

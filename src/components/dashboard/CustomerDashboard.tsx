@@ -27,7 +27,11 @@ import {
   Phone,
   Plus,
   Smartphone,
+  LogOut,
+  AlertCircle,
 } from 'lucide-react';
+import { AuthUserProfile } from '../../services/backend/authService';
+import { CreateProfileModal } from '../modals/CreateProfileModal';
 
 interface CustomerDashboardProps {
   currentLanguage: Language;
@@ -36,12 +40,15 @@ interface CustomerDashboardProps {
   leads: LeadSubmission[];
   transfers: BankTransferRenewal[];
   settings: SystemSettings;
-  onUpdateProfile: (updated: BusinessProfile) => void;
+  currentUser?: AuthUserProfile | null;
+  onUpdateProfile: (updated: BusinessProfile) => Promise<void> | void;
+  onProfileCreated?: (created: BusinessProfile) => void;
   onApproveProof: (orderId: string) => void;
   onRequestProofChange: (orderId: string, reason: string) => void;
   onSubmitRenewalTransfer: (transfer: BankTransferRenewal) => void;
   onViewChange: (view: AppView) => void;
   onOrderNewCard: () => void;
+  onSignOut?: () => void;
 }
 
 export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
@@ -50,11 +57,14 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   orders,
   leads,
   settings,
+  currentUser,
   onUpdateProfile,
+  onProfileCreated,
   onApproveProof,
   onRequestProofChange,
   onSubmitRenewalTransfer,
   onOrderNewCard,
+  onSignOut,
 }) => {
   const t = translations[currentLanguage];
 
@@ -74,11 +84,23 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [selectedProfileId, setSelectedProfileId] = useState<string>(
     profiles[0]?.id || ''
   );
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+
+  // Sync selectedProfileId if profiles change
+  React.useEffect(() => {
+    if (profiles.length > 0) {
+      if (!selectedProfileId || !profiles.some((p) => p.id === selectedProfileId)) {
+        setSelectedProfileId(profiles[0].id);
+      }
+    }
+  }, [profiles, selectedProfileId]);
 
   // Profile Editor state
-  const currentProfile =
+  const currentProfile: BusinessProfile | undefined =
     profiles.find((p) => p.id === selectedProfileId) || profiles[0];
-  const [editorData, setEditorData] = useState<BusinessProfile>(currentProfile);
+  const [editorData, setEditorData] = useState<BusinessProfile | null>(currentProfile || null);
   const [mobileEditorTab, setMobileEditorTab] = useState<'edit' | 'preview'>('edit');
   const [profileSavedToast, setProfileSavedToast] = useState(false);
 
@@ -97,16 +119,33 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     }
   }, [currentProfile?.id]);
 
-  const handleSaveProfileChanges = (e: React.FormEvent) => {
+  const handleSaveProfileChanges = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateProfile(editorData);
-    setProfileSavedToast(true);
-    setTimeout(() => setProfileSavedToast(false), 2500);
+    if (!editorData) return;
+    setIsSavingProfile(true);
+    setSaveErrorMessage(null);
+    try {
+      await onUpdateProfile(editorData);
+      setProfileSavedToast(true);
+      setTimeout(() => setProfileSavedToast(false), 2500);
+    } catch (err: any) {
+      console.warn('[TAGTOP] Profile save error:', err);
+      setSaveErrorMessage(err?.message || 'Error saving profile');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleProfileCreated = (newProfile: BusinessProfile) => {
+    setSelectedProfileId(newProfile.id);
+    if (onProfileCreated) {
+      onProfileCreated(newProfile);
+    }
   };
 
   const handleClaimTransfer = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!renewalReceipt) return;
+    if (!renewalReceipt || !currentProfile) return;
 
     const newTransfer: BankTransferRenewal = {
       id: `trn-${Date.now()}`,
@@ -149,8 +188,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 {t.customerDashboard.ownerSpace}
               </span>
               <span className="text-xs text-slate-500">
-                {t.customerDashboard.accountLabel} {currentProfile.ownerEmail}
+                {t.customerDashboard.accountLabel} {currentUser?.email || currentProfile?.ownerEmail || 'client@tagtop.ma'}
               </span>
+              {currentUser?.role && (
+                <span className="text-[10px] font-mono uppercase bg-neutral-100 text-slate-600 px-1.5 py-0.5 rounded">
+                  {currentUser.role === 'founder_admin' ? t.common.founderAdmin : t.common.clientArea}
+                </span>
+              )}
             </div>
             <h1 className="text-2xl font-extrabold text-black mt-1">
               {t.dashboard.customerTitle}
@@ -159,75 +203,129 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
           {/* Quick Profile Switcher & Actions */}
           <div className="flex items-center gap-3 flex-wrap">
-            <select
-              value={selectedProfileId}
-              onChange={(e) => setSelectedProfileId(e.target.value)}
-              className="bg-neutral-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-black focus:ring-2 focus:ring-amber-400"
+            {profiles.length > 0 && (
+              <select
+                value={selectedProfileId}
+                onChange={(e) => setSelectedProfileId(e.target.value)}
+                className="bg-neutral-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-black focus:ring-2 focus:ring-amber-400"
+              >
+                {profiles.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.displayName} ({p.accessState === 'private_preview' ? t.common.privatePreview : p.accessState === 'grace_period' ? t.common.gracePeriod : p.accessState === 'expired_suspended' ? t.common.suspended : t.common.active})
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setCreateModalOpen(true)}
+              className="bg-neutral-900 hover:bg-black text-white font-bold text-xs px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
             >
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.displayName} ({p.accessState === 'private_preview' ? t.common.privatePreview : p.accessState === 'grace_period' ? t.common.gracePeriod : p.accessState === 'expired_suspended' ? t.common.suspended : t.common.active})
-                </option>
-              ))}
-            </select>
+              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <span>{t.auth.createNewProfileBtn}</span>
+            </button>
 
             <button
               type="button"
               onClick={onOrderNewCard}
-              className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-xs"
+              className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5 shrink-0" />
+              <CreditCard className="w-3.5 h-3.5 shrink-0" />
               <span>{t.customerDashboard.orderNewCard}</span>
             </button>
+
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="bg-neutral-100 hover:bg-neutral-200 text-slate-700 font-semibold text-xs px-3 py-2 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer"
+                title={t.auth.signOutBtn}
+              >
+                <LogOut className="w-3.5 h-3.5 shrink-0" />
+                <span>{t.auth.signOutBtn}</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Access Warning / Grace Period Banner */}
-        {currentProfile.accessState === 'grace_period' && (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-500 text-black border border-amber-600 shadow-xs flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="w-6 h-6 shrink-0" />
-              <div>
-                <p className="font-extrabold text-sm">
-                  {t.customerDashboard.graceBannerTitle} « {currentProfile.displayName} »
-                </p>
-                <p className="text-xs text-black/80">
-                  {t.customerDashboard.graceBannerDesc} {currentProfile.graceDeadlineDate || '2026-11-04'}.
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab('subscription')}
-              className="px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs"
-            >
-              {t.customerDashboard.graceBannerAction}
-            </button>
-          </div>
-        )}
+        {/* Modal for creating a new profile */}
+        <CreateProfileModal
+          isOpen={createModalOpen}
+          onClose={() => setCreateModalOpen(false)}
+          currentLanguage={currentLanguage}
+          onProfileCreated={handleProfileCreated}
+        />
 
-        {currentProfile.accessState === 'private_preview' && (
-          <div className="mb-6 p-4 rounded-2xl bg-neutral-900 text-white border border-neutral-800 flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3">
-              <Eye className="w-5 h-5 text-amber-400 shrink-0" />
-              <div>
-                <p className="font-bold text-sm text-white">
-                  {t.customerDashboard.previewBannerTitle}
-                </p>
-                <p className="text-xs text-neutral-400">
-                  {t.customerDashboard.previewBannerDesc}
-                </p>
-              </div>
+        {/* EMPTY STATE: Customer has zero profiles */}
+        {profiles.length === 0 ? (
+          <div className="bg-white rounded-3xl p-8 sm:p-16 border border-neutral-200 shadow-xs text-center max-w-xl mx-auto my-8">
+            <div className="w-16 h-16 bg-amber-50 rounded-2xl border border-amber-200 flex items-center justify-center mx-auto mb-4 text-amber-600">
+              <UserCheck className="w-8 h-8" />
             </div>
+            <h2 className="text-xl font-extrabold text-slate-900 mb-2">
+              {t.auth.noProfilesTitle}
+            </h2>
+            <p className="text-xs text-slate-500 mb-6 max-w-sm mx-auto">
+              {t.auth.noProfilesSubtitle}
+            </p>
             <button
               type="button"
-              onClick={onOrderNewCard}
-              className="px-4 py-2 bg-[#FFD700] text-black font-bold text-xs rounded-xl"
+              onClick={() => setCreateModalOpen(true)}
+              className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-extrabold text-xs px-6 py-3 rounded-xl shadow-xs transition-transform active:scale-[0.98] inline-flex items-center gap-2 cursor-pointer"
             >
-              {t.customerDashboard.previewBannerAction}
+              <Plus className="w-4 h-4" />
+              <span>{t.auth.createFirstProfileBtn}</span>
             </button>
           </div>
-        )}
+        ) : !currentProfile ? null : (
+          <>
+            {/* Access Warning / Grace Period Banner */}
+            {currentProfile.accessState === 'grace_period' && (
+              <div className="mb-6 p-4 rounded-2xl bg-amber-500 text-black border border-amber-600 shadow-xs flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="w-6 h-6 shrink-0" />
+                  <div>
+                    <p className="font-extrabold text-sm">
+                      {t.customerDashboard.graceBannerTitle} « {currentProfile.displayName} »
+                    </p>
+                    <p className="text-xs text-black/80">
+                      {t.customerDashboard.graceBannerDesc} {currentProfile.graceDeadlineDate || '2026-11-04'}.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('subscription')}
+                  className="px-4 py-2 bg-black text-white font-bold text-xs rounded-xl shadow-xs"
+                >
+                  {t.customerDashboard.graceBannerAction}
+                </button>
+              </div>
+            )}
+
+            {currentProfile.accessState === 'private_preview' && (
+              <div className="mb-6 p-4 rounded-2xl bg-neutral-900 text-white border border-neutral-800 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <Eye className="w-5 h-5 text-amber-400 shrink-0" />
+                  <div>
+                    <p className="font-bold text-sm text-white">
+                      {t.customerDashboard.previewBannerTitle}
+                    </p>
+                    <p className="text-xs text-neutral-400">
+                      {t.customerDashboard.previewBannerDesc}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOrderNewCard}
+                  className="px-4 py-2 bg-[#FFD700] text-black font-bold text-xs rounded-xl cursor-pointer"
+                >
+                  {t.customerDashboard.previewBannerAction}
+                </button>
+              </div>
+            )}
 
         {/* Dashboard Main Grid: Left Navigation / Right Content */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -430,6 +528,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </div>
                 )}
 
+                {saveErrorMessage && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-800 text-xs font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{saveErrorMessage}</span>
+                  </div>
+                )}
+
                 {/* Side-by-side Desktop layout: Form Left (7 cols), Phone Preview Right (5 cols) */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                   
@@ -569,9 +674,17 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                     <button
                       type="submit"
-                      className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-extrabold px-6 py-3 rounded-xl shadow-xs transition-all"
+                      disabled={isSavingProfile}
+                      className="bg-[#FFD700] hover:bg-[#FACC15] disabled:opacity-60 text-black font-extrabold px-6 py-3 rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
                     >
-                      {t.common.save}
+                      {isSavingProfile ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                          <span>{t.common.loading}</span>
+                        </>
+                      ) : (
+                        <span>{t.common.save}</span>
+                      )}
                     </button>
                   </form>
 
@@ -932,6 +1045,8 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           </main>
 
         </div>
+        </>
+        )}
 
       </div>
     </div>

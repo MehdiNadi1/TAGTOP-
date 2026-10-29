@@ -38,8 +38,10 @@ import {
   saveTransfers,
   getStoredSettings,
   saveSettings,
-  recordAnalyticsEvent,
 } from './services/storage';
+import { dataAdapter } from './services/dataAdapter';
+import { authService, AuthUserProfile } from './services/backend/authService';
+import { isSupabaseConfigured } from './services/supabase/client';
 import { Header } from './components/common/Header';
 import { Footer } from './components/common/Footer';
 import { HeroInteractive } from './components/marketing/HeroInteractive';
@@ -56,7 +58,10 @@ import { PublicProfileView } from './components/profile/PublicProfileView';
 import { CustomerDashboard } from './components/dashboard/CustomerDashboard';
 import { FounderDashboard } from './components/dashboard/FounderDashboard';
 import { ContactQuoteModal } from './components/modals/ContactQuoteModal';
+import { CustomerAuth } from './components/auth/CustomerAuth';
 import { translations } from './i18n/translations';
+import { TAGTOP_LOGO_URL } from './utils/assets';
+import { AlertTriangle } from 'lucide-react';
 
 export default function App() {
   // Global presentation language (persisted in localStorage, default initial: 'fr')
@@ -78,18 +83,28 @@ export default function App() {
   const [currentSubPage, setCurrentSubPage] = useState<MarketingSubPage>('home');
   const [activeProfileId, setActiveProfileId] = useState<string>('prof-casablanca');
 
+  // Authentication and Session State
+  const [currentUser, setCurrentUser] = useState<AuthUserProfile | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(() => isSupabaseConfigured());
+  const [isCustomerDataLoading, setIsCustomerDataLoading] = useState<boolean>(false);
+
   // Application data state with persistent storage hydration
-  const [profiles, setProfiles] = useState<BusinessProfile[]>(() => getStoredProfiles(currentLanguage));
-  const [orders, setOrders] = useState<NfcCardOrder[]>(() => getStoredOrders());
-  const [leads, setLeads] = useState<LeadSubmission[]>(() => getStoredLeads());
+  const [profiles, setProfiles] = useState<BusinessProfile[]>(() =>
+    isSupabaseConfigured() ? [] : getStoredProfiles(currentLanguage)
+  );
+  const [orders, setOrders] = useState<NfcCardOrder[]>(() =>
+    isSupabaseConfigured() ? [] : getStoredOrders()
+  );
+  const [leads, setLeads] = useState<LeadSubmission[]>(() =>
+    isSupabaseConfigured() ? [] : getStoredLeads()
+  );
   const [registry, setRegistry] = useState<NfcCardRegistryItem[]>(() => getStoredRegistry());
   const [transfers, setTransfers] = useState<BankTransferRenewal[]>(() => getStoredTransfers());
   const [settings, setSettings] = useState<SystemSettings>(() => getStoredSettings());
 
-  // Reload profiles with language-aware merging when language changes without overwriting customer edits
-  useEffect(() => {
-    setProfiles(getStoredProfiles(currentLanguage));
-  }, [currentLanguage]);
+  // Public Profile Asynchronous Resolution
+  const [loadedPublicProfile, setLoadedPublicProfile] = useState<BusinessProfile | null>(null);
+  const [isPublicProfileLoading, setIsPublicProfileLoading] = useState<boolean>(false);
 
   // Quote modal state
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
@@ -101,6 +116,75 @@ export default function App() {
     document.documentElement.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
   }, [currentLanguage]);
 
+  // Load customer profiles, orders, and leads when user is authenticated
+  const loadCustomerData = async (userId: string, email: string) => {
+    setIsCustomerDataLoading(true);
+    try {
+      const [userProfiles, userOrders] = await Promise.all([
+        dataAdapter.getCustomerProfiles(userId, currentLanguage),
+        dataAdapter.getCustomerOrders(userId, email),
+      ]);
+      setProfiles(userProfiles);
+      setOrders(userOrders);
+
+      if (userProfiles.length > 0) {
+        const userLeads = await dataAdapter.getProfileLeads(userProfiles[0].id);
+        setLeads(userLeads);
+      } else {
+        setLeads([]);
+      }
+    } catch (err) {
+      console.warn('[TAGTOP App] Error loading customer data:', err);
+    } finally {
+      setIsCustomerDataLoading(false);
+    }
+  };
+
+  // Supabase Authentication Lifecycle & Persistent Session Recovery
+  useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      setIsAuthLoading(false);
+      setProfiles(getStoredProfiles(currentLanguage));
+      return;
+    }
+
+    let isMounted = true;
+
+    // 1. Initial persistent session check
+    authService.getCurrentUser().then(async (user) => {
+      if (!isMounted) return;
+      setCurrentUser(user);
+      if (user) {
+        await loadCustomerData(user.id, user.email);
+      }
+      setIsAuthLoading(false);
+    }).catch((err) => {
+      console.warn('[TAGTOP App] Initial auth error:', err);
+      if (isMounted) setIsAuthLoading(false);
+    });
+
+    // 2. Real-time auth state listener (sign in, sign out, token refresh)
+    const unsubscribe = authService.onAuthStateChange(async (user) => {
+      if (!isMounted) return;
+      setCurrentUser(user);
+      if (user) {
+        await loadCustomerData(user.id, user.email);
+      } else {
+        if (isSupabaseConfigured()) {
+          setProfiles([]);
+          setOrders([]);
+          setLeads([]);
+        }
+      }
+      setIsAuthLoading(false);
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [currentLanguage]);
+
   // Handle URL hash changes for deep linking, NFC card taps (#c/tag-xxx), and profile viewing (#p/handle)
   useEffect(() => {
     const handleHashChange = () => {
@@ -110,29 +194,42 @@ export default function App() {
       // 1. NFC Card direct tap resolution (#c/tag-casablanca-01 or #card/tag-xxx or #c/UID)
       if (hash.startsWith('c/') || hash.startsWith('card/')) {
         const tagUid = hash.replace(/^(c|card)\//, '');
-        const currentReg = getStoredRegistry();
-        const matched = currentReg.find(
-          (item) => item.uid.toLowerCase() === tagUid.toLowerCase() || item.serialNumber.toLowerCase() === tagUid.toLowerCase()
-        );
-        if (matched && matched.linkedProfileId) {
-          setActiveProfileId(matched.linkedProfileId);
-          recordAnalyticsEvent(matched.linkedProfileId, 'tap');
-          setCurrentView('public-profile');
-          return;
-        }
+        setIsPublicProfileLoading(true);
+        setCurrentView('public-profile');
+        dataAdapter.resolveNfcTap(tagUid).then(async (linkedId) => {
+          if (linkedId) {
+            setActiveProfileId(linkedId);
+            const pub = await dataAdapter.getPublicProfile(linkedId, currentLanguage);
+            setLoadedPublicProfile(pub);
+            if (pub) dataAdapter.recordProfileEvent(pub.id, 'tap');
+          } else {
+            setLoadedPublicProfile(null);
+          }
+          setIsPublicProfileLoading(false);
+        }).catch(() => {
+          setLoadedPublicProfile(null);
+          setIsPublicProfileLoading(false);
+        });
+        return;
       }
 
       // 2. Direct public profile handle resolution (#p/handle or #p/id)
       if (hash.startsWith('p/')) {
         const handleOrId = hash.replace(/^p\//, '');
-        const currentProfs = getStoredProfiles();
-        const matched = currentProfs.find((p) => p.handle === handleOrId || p.id === handleOrId);
-        if (matched) {
-          setActiveProfileId(matched.id);
-          recordAnalyticsEvent(matched.id, 'tap');
-          setCurrentView('public-profile');
-          return;
-        }
+        setIsPublicProfileLoading(true);
+        setCurrentView('public-profile');
+        dataAdapter.getPublicProfile(handleOrId, currentLanguage).then((pub) => {
+          setLoadedPublicProfile(pub);
+          if (pub) {
+            setActiveProfileId(pub.id);
+            dataAdapter.recordProfileEvent(pub.id, 'tap');
+          }
+          setIsPublicProfileLoading(false);
+        }).catch(() => {
+          setLoadedPublicProfile(null);
+          setIsPublicProfileLoading(false);
+        });
+        return;
       }
 
       if (hash === 'customer-dashboard' || hash === 'founder-dashboard' || hash === 'public-profile') {
@@ -152,7 +249,7 @@ export default function App() {
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
+  }, [currentLanguage]);
 
   // Smooth scroll to anchor sections when subpage changes
   useEffect(() => {
@@ -165,58 +262,83 @@ export default function App() {
   }, [currentSubPage, currentView]);
 
   // Order Handlers
-  const handleOrderCreated = (newOrder: NfcCardOrder) => {
-    const updatedOrders = addStoredOrder(newOrder);
-    setOrders(updatedOrders);
+  const handleOrderCreated = async (newOrder: NfcCardOrder) => {
+    try {
+      const savedOrder = await dataAdapter.createOrder(newOrder, currentUser?.id);
+      setOrders((prev) => [savedOrder, ...prev]);
 
-    // If profile was in private preview, mark as order_pending
-    setProfiles((prev) => {
-      const next = prev.map((p) => {
-        if (p.id === newOrder.profileId && p.accessState === 'private_preview') {
-          return { ...p, accessState: 'order_pending' as const };
-        }
-        return p;
-      });
-      // Update in storage
-      const target = next.find((p) => p.id === newOrder.profileId);
-      if (target) updateStoredProfile(target);
-      return next;
-    });
+      // If profile was in private preview, mark as order_pending
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id === newOrder.profileId && p.accessState === 'private_preview') {
+            return { ...p, accessState: 'order_pending' as const };
+          }
+          return p;
+        })
+      );
+    } catch (err) {
+      console.error('[TAGTOP App] Order creation failed:', err);
+    }
   };
 
-  const handleUpdateProfile = (updated: BusinessProfile) => {
-    const nextProfiles = updateStoredProfile(updated);
-    setProfiles(nextProfiles);
+  const handleUpdateProfile = async (updated: BusinessProfile) => {
+    try {
+      const saved = await dataAdapter.updateProfile(updated);
+      setProfiles((prev) => prev.map((p) => (p.id === saved.id ? saved : p)));
+    } catch (err) {
+      console.error('[TAGTOP App] Profile update failed:', err);
+      throw err;
+    }
+  };
+
+  const handleProfileCreated = (newProfile: BusinessProfile) => {
+    setProfiles((prev) => [newProfile, ...prev]);
+    setActiveProfileId(newProfile.id);
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await authService.signOut();
+    } catch (err) {
+      console.warn('[TAGTOP App] Sign out error:', err);
+    }
+    setCurrentUser(null);
+    if (isSupabaseConfigured()) {
+      setProfiles([]);
+      setOrders([]);
+      setLeads([]);
+    }
+    setCurrentView('marketing');
   };
 
   const handleApproveProof = (orderId: string) => {
-    setOrders((prev) => {
-      const next = prev.map((o) =>
-        o.id === orderId
-          ? { ...o, proofApproved: true, orderStatus: 'customer_approved' as const }
-          : o
+    dataAdapter.approveProof(orderId).then(() => {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, proofApproved: true, orderStatus: 'customer_approved' as const }
+            : o
+        )
       );
-      saveOrders(next);
-      return next;
-    });
+    }).catch(console.error);
   };
 
   const handleRequestProofChange = (orderId: string, reason: string) => {
-    setOrders((prev) => {
-      const next = prev.map((o) =>
-        o.id === orderId
-          ? {
-              ...o,
-              proofApproved: false,
-              proofRejectionReason: reason,
-              orderStatus: 'artwork_review' as const,
-            }
-          : o
+    dataAdapter.requestProofChange(orderId, reason).then(() => {
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? {
+                ...o,
+                proofApproved: false,
+                proofRejectionReason: reason,
+                orderStatus: 'artwork_review' as const,
+              }
+            : o
+        )
       );
-      saveOrders(next);
-      return next;
-    });
-    alert(translations[currentLanguage].app.proofModificationSentAlert);
+      alert(translations[currentLanguage].app.proofModificationSentAlert);
+    }).catch(console.error);
   };
 
   const handleSubmitRenewalTransfer = (transfer: BankTransferRenewal) => {
@@ -321,8 +443,7 @@ export default function App() {
   };
 
   const handleLeadSubmitted = (lead: LeadSubmission) => {
-    const updated = addStoredLead(lead);
-    setLeads(updated);
+    setLeads((prev) => [lead, ...prev]);
   };
 
   const openQuoteModalForTier = (tier: PackageTier) => {
@@ -344,27 +465,55 @@ export default function App() {
         onViewChange={setCurrentView}
         currentSubPage={currentSubPage}
         onNavigateSubPage={setCurrentSubPage}
+        currentUser={currentUser}
       />
 
-      {/* VIEW 1: CUSTOMER DASHBOARD */}
+      {/* VIEW 1: CUSTOMER DASHBOARD (PROTECTED ROUTE) */}
       {currentView === 'customer-dashboard' && (
-        <CustomerDashboard
-          currentLanguage={currentLanguage}
-          profiles={profiles}
-          orders={orders}
-          leads={leads}
-          transfers={transfers}
-          settings={settings}
-          onUpdateProfile={handleUpdateProfile}
-          onApproveProof={handleApproveProof}
-          onRequestProofChange={handleRequestProofChange}
-          onSubmitRenewalTransfer={handleSubmitRenewalTransfer}
-          onViewChange={setCurrentView}
-          onOrderNewCard={() => {
-            setCurrentView('marketing');
-            setCurrentSubPage('configurator');
-          }}
-        />
+        <>
+          {isAuthLoading ? (
+            <div className="min-h-screen bg-neutral-100 flex items-center justify-center p-4">
+              <div className="bg-white p-8 rounded-3xl border border-neutral-200 shadow-xl text-center max-w-sm w-full animate-fadeIn">
+                <div className="w-28 h-8 mx-auto mb-4 flex items-center justify-center">
+                  <img src={TAGTOP_LOGO_URL} alt="TAGTOP" className="h-6 object-contain" />
+                </div>
+                <div className="w-7 h-7 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-xs font-semibold text-slate-700">{translations[currentLanguage].auth.sessionLoading}</p>
+              </div>
+            </div>
+          ) : isSupabaseConfigured() && !currentUser ? (
+            <div className="min-h-screen bg-neutral-100 py-8 px-4 flex items-center justify-center">
+              <CustomerAuth
+                currentLanguage={currentLanguage}
+                onSuccess={() => {
+                  // onAuthStateChange handles user state hydration
+                }}
+                onCancel={() => setCurrentView('marketing')}
+              />
+            </div>
+          ) : (
+            <CustomerDashboard
+              currentLanguage={currentLanguage}
+              profiles={profiles}
+              orders={orders}
+              leads={leads}
+              transfers={transfers}
+              settings={settings}
+              currentUser={currentUser}
+              onUpdateProfile={handleUpdateProfile}
+              onProfileCreated={handleProfileCreated}
+              onApproveProof={handleApproveProof}
+              onRequestProofChange={handleRequestProofChange}
+              onSubmitRenewalTransfer={handleSubmitRenewalTransfer}
+              onViewChange={setCurrentView}
+              onOrderNewCard={() => {
+                setCurrentView('marketing');
+                setCurrentSubPage('configurator');
+              }}
+              onSignOut={handleSignOut}
+            />
+          )}
+        </>
       )}
 
       {/* VIEW 2: FOUNDER / ADMIN DASHBOARD */}
@@ -392,19 +541,45 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4 mb-4 flex items-center justify-between">
             <button
               onClick={() => setCurrentView('marketing')}
-              className="text-xs font-bold text-slate-600 hover:text-black"
+              className="text-xs font-bold text-slate-600 hover:text-black flex items-center gap-1 cursor-pointer"
             >
-              ← {translations[currentLanguage].app.backToSite}
+              <span>←</span>
+              <span>{translations[currentLanguage].app.backToSite}</span>
             </button>
-            <span className="text-xs font-mono text-slate-500">
-              {translations[currentLanguage].app.livePreviewOf} {resolvedPublicProfile.displayName}
-            </span>
+            {(loadedPublicProfile || resolvedPublicProfile) && (
+              <span className="text-xs font-mono text-slate-500">
+                {translations[currentLanguage].app.livePreviewOf} {(loadedPublicProfile || resolvedPublicProfile).displayName}
+              </span>
+            )}
           </div>
-          <PublicProfileView
-            profile={resolvedPublicProfile}
-            currentLanguage={currentLanguage}
-            onLeadSubmitted={handleLeadSubmitted}
-          />
+
+          {isPublicProfileLoading ? (
+            <div className="max-w-md mx-auto my-16 bg-white p-8 rounded-3xl border border-neutral-200 shadow-xl text-center">
+              <div className="w-8 h-8 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-xs font-semibold text-slate-600">{translations[currentLanguage].app.profileLoading}</p>
+            </div>
+          ) : (loadedPublicProfile || resolvedPublicProfile) ? (
+            <PublicProfileView
+              profile={loadedPublicProfile || resolvedPublicProfile}
+              currentLanguage={currentLanguage}
+              onLeadSubmitted={handleLeadSubmitted}
+            />
+          ) : (
+            <div className="max-w-md mx-auto my-16 bg-white p-8 rounded-3xl border border-neutral-200 shadow-xl text-center">
+              <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-600">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 mb-1">{translations[currentLanguage].app.profileNotFound}</h3>
+              <p className="text-xs text-slate-500 mb-5">{translations[currentLanguage].app.profilePrivateOrNotFound}</p>
+              <button
+                type="button"
+                onClick={() => setCurrentView('marketing')}
+                className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs cursor-pointer"
+              >
+                {translations[currentLanguage].app.backToHome}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -106,3 +106,51 @@ test('dataAdapter.createOrder persists an order with COD payment status', async 
   assert.equal(created.priceMAD, 250);
   assert.equal(created.paymentStatus, 'cod_pending');
 });
+
+test('dataAdapter.createProfile creates a customer profile in private preview mode', async () => {
+  const newProfile = await dataAdapter.createProfile({
+    handle: 'architecte-rabat',
+    displayName: 'Fatima Zahra',
+    jobTitle: 'Architecte DPLG',
+    company: 'Atelier Rabat Design',
+    city: 'Rabat',
+    phone: '+212661998877',
+    templateId: 'creative',
+  });
+
+  assert.ok(newProfile.id);
+  assert.equal(newProfile.displayName, 'Fatima Zahra');
+  assert.equal(newProfile.accessState, 'private_preview');
+  assert.equal(newProfile.linkedCardCount, 0);
+  assert.ok(newProfile.expiryDate);
+});
+
+test('dataAdapter.updateProfile modifies allowed business profile fields', async () => {
+  const initial = await dataAdapter.createProfile({
+    handle: 'tazi-consulting',
+    displayName: 'Mehdi Tazi',
+    company: 'Tazi Conseil',
+    city: 'Casablanca',
+  });
+
+  const updated = await dataAdapter.updateProfile({
+    ...initial,
+    displayName: 'Mehdi Tazi Senior Partner',
+    bio: 'Conseil stratégique pour PME à Casablanca',
+  });
+
+  assert.equal(updated.id, initial.id);
+  assert.equal(updated.displayName, 'Mehdi Tazi Senior Partner');
+  assert.equal(updated.bio, 'Conseil stratégique pour PME à Casablanca');
+});
+
+test('dataAdapter.getCustomerProfiles returns owned profiles', async () => {
+  const profiles = await dataAdapter.getCustomerProfiles('demo-customer', 'fr');
+  assert.ok(Array.isArray(profiles));
+  assert.ok(profiles.length > 0);
+});
+
+test('authService reflects Supabase configuration state', () => {
+  const configured = dataAdapter.isLiveBackend();
+  assert.equal(typeof configured, 'boolean');
+});

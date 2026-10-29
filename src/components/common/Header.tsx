@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Language, AppView, MarketingSubPage } from '../../types';
 import { translations } from '../../i18n/translations';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
+import { AuthUserProfile } from '../../services/backend/authService';
 import { Globe, Menu, X, Shield, User, ExternalLink } from 'lucide-react';
 
 interface HeaderProps {
@@ -11,6 +12,7 @@ interface HeaderProps {
   onViewChange: (view: AppView) => void;
   currentSubPage: MarketingSubPage;
   onNavigateSubPage: (page: MarketingSubPage) => void;
+  currentUser?: AuthUserProfile | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onViewChange,
   currentSubPage,
   onNavigateSubPage,
+  currentUser,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isDevMode, setIsDevMode] = useState(false);
@@ -159,14 +162,18 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => onViewChange('customer-dashboard')}
-              className={`hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+              className={`hidden md:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                 currentView === 'customer-dashboard'
                   ? 'bg-neutral-900 text-white font-bold'
                   : 'text-slate-700 hover:text-black hover:bg-slate-100 border border-slate-200'
               }`}
             >
-              <User className="w-3.5 h-3.5 shrink-0" />
-              <span>{t.common.clientArea}</span>
+              {currentUser ? (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              ) : (
+                <User className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span>{currentUser?.fullName?.split(' ')[0] || t.common.clientArea}</span>
             </button>
 
             {/* Language Switcher */}
