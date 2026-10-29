@@ -16,38 +16,40 @@ import {
   CreditCard,
   FileCheck,
   AlertTriangle,
+  CheckCircle2,
   Settings,
   Cpu,
-  Lock,
   LogOut,
   Download,
   Upload,
 } from 'lucide-react';
 import {
-  getStoredAdminSession,
-  saveAdminSession,
   exportDataSnapshot,
   importDataSnapshot,
 } from '../../services/storage';
+import { AuthUserProfile } from '../../services/backend/authService';
 
 interface FounderDashboardProps {
   currentLanguage: Language;
+  currentUser: AuthUserProfile | null;
   profiles: BusinessProfile[];
   orders: NfcCardOrder[];
   registry: NfcCardRegistryItem[];
   transfers: BankTransferRenewal[];
   settings: SystemSettings;
-  onUpdateOrderStatus: (orderId: string, status: any) => void;
-  onUpdatePaymentStatus: (orderId: string, status: any) => void;
-  onApproveTransfer: (transferId: string, founderNotes: string) => void;
-  onRejectTransfer: (transferId: string, reason: string) => void;
-  onUpdateProfileAccess: (profileId: string, newState: any) => void;
-  onUpdateSettings: (newSettings: SystemSettings) => void;
+  onUpdateOrderStatus: (orderId: string, status: any) => Promise<void> | void;
+  onUpdatePaymentStatus: (orderId: string, status: any) => Promise<void> | void;
+  onApproveTransfer: (transferId: string, founderNotes: string) => Promise<void> | void;
+  onRejectTransfer: (transferId: string, reason: string) => Promise<void> | void;
+  onUpdateProfileAccess: (profileId: string, newState: any) => Promise<void> | void;
+  onUpdateSettings: (newSettings: SystemSettings) => Promise<void> | void;
   onViewChange: (view: AppView) => void;
+  onSignOut: () => void;
 }
 
 export const FounderDashboard: React.FC<FounderDashboardProps> = ({
   currentLanguage,
+  currentUser,
   profiles,
   orders,
   registry,
@@ -60,21 +62,16 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
   onUpdateProfileAccess,
   onUpdateSettings,
   onViewChange,
+  onSignOut,
 }) => {
   const t = translations[currentLanguage];
   const [activeTab, setActiveTab] = useState<FounderTab>('overview');
 
-  // Admin authentication state (Session-gated)
-  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
-    return getStoredAdminSession().isAuthenticated;
-  });
-  const [adminPasscode, setAdminPasscode] = useState('');
-  const [authError, setAuthError] = useState(false);
+  // Mutation feedback state
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [snapshotMsg, setSnapshotMsg] = useState('');
-
-  // Transfer action modal state
-  const [_transferNotes, setTransferNotes] = useState<string>('');
-  const [_selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
 
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<SystemSettings>(settings);
@@ -84,21 +81,91 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
   const pendingTransfersCount = transfers.filter((t) => t.status === 'pending').length;
   const graceProfilesCount = profiles.filter((p) => p.accessState === 'grace_period').length;
 
-  const handleAdminLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminPasscode === 'tagtop-founder-2026' || adminPasscode === 'admin2026') {
-      saveAdminSession({ isAuthenticated: true, authenticatedAt: new Date().toISOString() });
-      setIsAdminAuthenticated(true);
-      setAuthError(false);
-    } else {
-      setAuthError(true);
+  const clearMessages = () => {
+    setMutationError(null);
+    setMutationSuccess(null);
+  };
+
+  const handleStatusChange = async (orderId: string, status: any) => {
+    clearMessages();
+    setActionLoadingId(orderId);
+    try {
+      await onUpdateOrderStatus(orderId, status);
+      setMutationSuccess('Statut de commande mis à jour avec succès');
+      setTimeout(() => setMutationSuccess(null), 3000);
+    } catch (err: any) {
+      setMutationError(`${t.founderDashboard.mutationError} ${err.message || err}`);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
-  const handleAdminLogout = () => {
-    saveAdminSession({ isAuthenticated: false });
-    setIsAdminAuthenticated(false);
-    onViewChange('marketing');
+  const handlePaymentChange = async (orderId: string, status: any) => {
+    clearMessages();
+    setActionLoadingId(orderId);
+    try {
+      await onUpdatePaymentStatus(orderId, status);
+      setMutationSuccess('Statut de paiement mis à jour avec succès');
+      setTimeout(() => setMutationSuccess(null), 3000);
+    } catch (err: any) {
+      setMutationError(`${t.founderDashboard.mutationError} ${err.message || err}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleApprove = async (transferId: string, notes: string) => {
+    clearMessages();
+    setActionLoadingId(transferId);
+    try {
+      await onApproveTransfer(transferId, notes);
+      setMutationSuccess('Virement approuvé et abonnement prolongé');
+      setTimeout(() => setMutationSuccess(null), 3000);
+    } catch (err: any) {
+      setMutationError(`${t.founderDashboard.mutationError} ${err.message || err}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleReject = async (transferId: string, reason: string) => {
+    clearMessages();
+    setActionLoadingId(transferId);
+    try {
+      await onRejectTransfer(transferId, reason);
+      setMutationSuccess('Virement rejeté');
+      setTimeout(() => setMutationSuccess(null), 3000);
+    } catch (err: any) {
+      setMutationError(`${t.founderDashboard.mutationError} ${err.message || err}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleAccessChange = async (profileId: string, newState: any) => {
+    clearMessages();
+    setActionLoadingId(profileId);
+    try {
+      await onUpdateProfileAccess(profileId, newState);
+      setMutationSuccess('Statut d’accès mis à jour avec succès');
+      setTimeout(() => setMutationSuccess(null), 3000);
+    } catch (err: any) {
+      setMutationError(`${t.founderDashboard.mutationError} ${err.message || err}`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearMessages();
+    try {
+      await onUpdateSettings(settingsForm);
+      setSettingsSavedToast(true);
+      setTimeout(() => setSettingsSavedToast(false), 2500);
+    } catch (err: any) {
+      setMutationError(`${t.founderDashboard.mutationError} ${err.message || err}`);
+    }
   };
 
   const handleExportSnapshot = () => {
@@ -134,104 +201,6 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
     }
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdateSettings(settingsForm);
-    setSettingsSavedToast(true);
-    setTimeout(() => setSettingsSavedToast(false), 2500);
-  };
-
-  // If not authenticated, render the Secure Admin Challenge Screen
-  if (!isAdminAuthenticated) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center py-12 px-4">
-        <div className="max-w-md w-full bg-neutral-900 rounded-3xl p-8 border border-neutral-800 shadow-2xl space-y-6">
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 bg-amber-400 text-black rounded-2xl mx-auto flex items-center justify-center font-bold shadow-md">
-              <Lock className="w-7 h-7" />
-            </div>
-            <h1 className="text-xl font-black text-white">
-              {t.dashboard.founderTitle}
-            </h1>
-            <p className="text-xs text-neutral-400">
-              {currentLanguage === 'ar'
-                ? 'منطقة محمية - يتطلب تصريح الدخول'
-                : currentLanguage === 'en'
-                ? 'Restricted Founder Console - Passcode Required'
-                : 'Console d’Administration — Accès Restreint'}
-            </p>
-          </div>
-
-          {/* Infrastructure Boundary Notice */}
-          <div className="p-4 bg-amber-400/10 border border-amber-400/30 rounded-2xl text-xs space-y-2 text-amber-200">
-            <div className="flex items-center gap-2 font-bold text-amber-400">
-              <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>
-                {currentLanguage === 'ar'
-                  ? 'ملاحظة الأمان (استضافة GitHub Pages)'
-                  : currentLanguage === 'en'
-                  ? 'Security Sandbox (GitHub Pages Hosting)'
-                  : 'Sécurité & Hébergement Statique'}
-              </span>
-            </div>
-            <p className="text-[11px] leading-relaxed text-neutral-300">
-              {currentLanguage === 'ar'
-                ? 'تعمل المنصة حالياً عبر استضافة ثابتة. العمليات الحساسة محصنة في بيئة التخزين المحلية. يتطلب النشر النهائي في الإنتاج خادماً خلفياً للتحقق من المدفوعات وتشفير الرقاقات.'
-                : currentLanguage === 'en'
-                ? 'This portal is hosted on static infrastructure. Sensitive admin modifications run in a sandboxed local persistence store. Production database and server verification are required for live roll-out.'
-                : 'Cette instance s’exécute sur hébergement statique. Les données et opérations sont sécurisées dans le stockage local persistant.'}
-            </p>
-          </div>
-
-          <form onSubmit={handleAdminLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-neutral-300 mb-1">
-                {currentLanguage === 'ar' ? 'رمز مرور المؤسس' : currentLanguage === 'en' ? 'Founder Passcode' : 'Code d’accès fondateur'}
-              </label>
-              <input
-                type="password"
-                required
-                value={adminPasscode}
-                onChange={(e) => {
-                  setAdminPasscode(e.target.value);
-                  if (authError) setAuthError(false);
-                }}
-                placeholder="••••••••••••"
-                className="w-full bg-neutral-950 border border-neutral-700 focus:border-amber-400 rounded-xl px-4 py-3 text-sm text-white focus:outline-none"
-              />
-              {authError && (
-                <p className="text-xs text-red-400 mt-1.5 font-medium">
-                  {currentLanguage === 'ar'
-                    ? 'رمز المرور غير صحيح'
-                    : currentLanguage === 'en'
-                    ? 'Invalid security passcode'
-                    : 'Code d’accès incorrect.'}
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-amber-400 hover:bg-amber-500 text-black font-extrabold py-3 rounded-xl transition-all shadow-md text-sm"
-            >
-              {currentLanguage === 'ar' ? 'دخول لوحة التحكم' : currentLanguage === 'en' ? 'Unlock Founder Console' : 'Déverrouiller la Console'}
-            </button>
-          </form>
-
-          <div className="pt-2 text-center">
-            <button
-              type="button"
-              onClick={() => onViewChange('marketing')}
-              className="text-xs text-neutral-500 hover:text-white transition-colors"
-            >
-              ← {t.app.backToSite}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-neutral-900 text-white flex flex-col">
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-8 py-8">
@@ -245,16 +214,24 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono uppercase bg-amber-400/20 text-amber-300 px-2 py-0.5 rounded font-bold">
-                  {t.founderDashboard.adminBadge}
+                  {t.founderDashboard.adminRoleVerified}
                 </span>
-                <span className="text-xs text-neutral-400">{t.founderDashboard.founderTitle}</span>
                 <span className="text-[10px] font-mono bg-emerald-950 text-emerald-400 border border-emerald-800 px-2 py-0.5 rounded">
-                  Session Active
+                  {t.founderDashboard.adminSessionActive}
                 </span>
               </div>
               <h1 className="text-2xl font-black text-white mt-0.5">
                 {t.dashboard.founderTitle}
               </h1>
+              {currentUser && (
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  <span className="font-semibold text-white">{currentUser.fullName || currentUser.email}</span>
+                  <span className="mx-1.5 text-neutral-600">·</span>
+                  <span className="font-mono text-neutral-400">{currentUser.email}</span>
+                  <span className="mx-1.5 text-neutral-600">·</span>
+                  <span className="text-amber-400 font-mono uppercase text-[10px]">role: {currentUser.role}</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -262,27 +239,60 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
             <button
               type="button"
               onClick={() => onViewChange('marketing')}
-              className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold rounded-xl transition-colors"
+              className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
             >
               {t.common.viewSite}
             </button>
             <button
               type="button"
               onClick={() => onViewChange('customer-dashboard')}
-              className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold rounded-xl transition-colors"
+              className="px-3.5 py-2 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-semibold rounded-xl transition-colors cursor-pointer"
             >
               {t.founderDashboard.viewCustomerPortal}
             </button>
             <button
               type="button"
-              onClick={handleAdminLogout}
-              className="px-3.5 py-2 bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
+              onClick={onSignOut}
+              className="px-3.5 py-2 bg-red-950/80 hover:bg-red-900 text-red-200 border border-red-800 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Déconnexion</span>
+              <span>{t.founderDashboard.founderSignOut}</span>
             </button>
           </div>
         </div>
+
+        {/* Mutation Alerts */}
+        {mutationError && (
+          <div className="mb-6 p-4 bg-red-950/80 border border-red-800 rounded-2xl flex items-center justify-between text-xs text-red-200">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{mutationError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMutationError(null)}
+              className="text-red-400 hover:text-white font-bold ml-4"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {mutationSuccess && (
+          <div className="mb-6 p-4 bg-emerald-950/80 border border-emerald-800 rounded-2xl flex items-center justify-between text-xs text-emerald-200">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>{mutationSuccess}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMutationSuccess(null)}
+              className="text-emerald-400 hover:text-white font-bold ml-4"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -449,8 +459,9 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                             <td className="py-3 px-3 text-right rtl:text-left">
                               <select
                                 value={p.accessState}
-                                onChange={(e) => onUpdateProfileAccess(p.id, e.target.value)}
-                                className="bg-neutral-900 border border-neutral-700 text-white rounded-lg px-2 py-1 text-xs"
+                                disabled={actionLoadingId === p.id}
+                                onChange={(e) => handleAccessChange(p.id, e.target.value)}
+                                className="bg-neutral-900 border border-neutral-700 text-white rounded-lg px-2 py-1 text-xs disabled:opacity-50 cursor-pointer"
                               >
                                 <option value="private_preview">{t.common.privatePreview}</option>
                                 <option value="active">{t.common.active}</option>
@@ -518,8 +529,9 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                           <span className="text-neutral-400">{t.founderDashboard.orderStage}</span>
                           <select
                             value={ord.orderStatus}
-                            onChange={(e) => onUpdateOrderStatus(ord.id, e.target.value)}
-                            className="bg-neutral-800 border border-neutral-700 text-white rounded-lg px-2.5 py-1 text-xs"
+                            disabled={actionLoadingId === ord.id}
+                            onChange={(e) => handleStatusChange(ord.id, e.target.value)}
+                            className="bg-neutral-800 border border-neutral-700 text-white rounded-lg px-2.5 py-1 text-xs disabled:opacity-50 cursor-pointer"
                           >
                             <option value="received">{t.founderDashboard.orderStep1}</option>
                             <option value="artwork_review">{t.founderDashboard.orderStep2}</option>
@@ -535,13 +547,14 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                           <span className="text-neutral-400">{t.founderDashboard.codPayment}</span>
                           <button
                             type="button"
+                            disabled={actionLoadingId === ord.id}
                             onClick={() =>
-                              onUpdatePaymentStatus(
+                              handlePaymentChange(
                                 ord.id,
                                 ord.paymentStatus === 'cod_collected' ? 'cod_pending' : 'cod_collected'
                               )
                             }
-                            className={`px-3 py-1 rounded-lg font-bold text-xs ${ord.paymentStatus === 'cod_collected'
+                            className={`px-3 py-1 rounded-lg font-bold text-xs cursor-pointer disabled:opacity-50 ${ord.paymentStatus === 'cod_collected'
                                 ? 'bg-emerald-600 text-white'
                                 : 'bg-neutral-800 text-neutral-300 hover:text-white'
                               }`}
@@ -658,18 +671,20 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                           <div className="flex items-center justify-end gap-3 pt-2 border-t border-neutral-800">
                             <button
                               type="button"
-                              onClick={() => onApproveTransfer(trn.id, t.founderDashboard.approvedNotes)}
-                              className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs px-4 py-2 rounded-xl"
+                              disabled={actionLoadingId === trn.id}
+                              onClick={() => handleApprove(trn.id, t.founderDashboard.approvedNotes)}
+                              className="bg-emerald-500 hover:bg-emerald-600 text-black font-extrabold text-xs px-4 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
                             >
                               {t.founderDashboard.approveAndExtend}
                             </button>
                             <button
                               type="button"
+                              disabled={actionLoadingId === trn.id}
                               onClick={() => {
                                 const reason = prompt(t.founderDashboard.rejectPrompt);
-                                if (reason) onRejectTransfer(trn.id, reason);
+                                if (reason) handleReject(trn.id, reason);
                               }}
-                              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs px-3.5 py-2 rounded-xl"
+                              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs px-3.5 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
                             >
                               {t.founderDashboard.reject}
                             </button>
@@ -724,13 +739,14 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
 
                           <button
                             type="button"
+                            disabled={actionLoadingId === p.id}
                             onClick={() =>
-                              onUpdateProfileAccess(
+                              handleAccessChange(
                                 p.id,
                                 p.accessState === 'expired_suspended' ? 'active' : 'expired_suspended'
                               )
                             }
-                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg"
+                            className="px-3 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg disabled:opacity-50 cursor-pointer"
                           >
                             {p.accessState === 'expired_suspended' ? t.founderDashboard.restoreAccess : t.founderDashboard.discreetlySuspend}
                           </button>

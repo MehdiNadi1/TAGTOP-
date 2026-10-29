@@ -734,6 +734,7 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       if (authOrderErr || !authOrder) {
         fail('Customer A', '2.7 Customer A authenticated order creation', authOrderErr?.message || 'no data');
       } else {
+        orderAId = authOrder.id;
         cleanupQueue.push({ table: 'orders', id: authOrder.id });
         const priceOk = Number(authOrder.price_mad) === 250.00;
         const ownerOk = authOrder.customer_id === userIdA;
@@ -998,6 +999,99 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
         }
       }
     }
+
+    // 4.5: is_founder_admin RPC returns true for Founder Admin
+    {
+      const { data: isAdmin, error } = await clientAdmin.rpc('is_founder_admin');
+      if (!error && isAdmin === true) {
+        pass('Founder Admin', '4.5 is_founder_admin() returns TRUE for authenticated founder_admin', '');
+      } else {
+        fail('Founder Admin', '4.5 is_founder_admin() failed for admin', error?.message || `returned: ${isAdmin}`);
+      }
+    }
+
+    // 4.6: is_founder_admin RPC returns false for Customer A
+    {
+      const { data: isAdmin, error } = await clientA.rpc('is_founder_admin');
+      if (!error && isAdmin === false) {
+        pass('Founder Admin', '4.6 is_founder_admin() returns FALSE for ordinary customer', '');
+      } else {
+        fail('Founder Admin', '4.6 is_founder_admin() should return false for customer', error?.message || `returned: ${isAdmin}`);
+      }
+    }
+
+    // 4.7: is_founder_admin RPC returns false for anonymous visitor
+    {
+      const { data: isAdmin, error } = await anonClient.rpc('is_founder_admin');
+      if (!error && isAdmin === false) {
+        pass('Founder Admin', '4.7 is_founder_admin() returns FALSE for anonymous caller', '');
+      } else {
+        fail('Founder Admin', '4.7 is_founder_admin() should return false for anon', error?.message || `returned: ${isAdmin}`);
+      }
+    }
+
+    // 4.8: Customer A CANNOT invoke founder_update_order_status
+    {
+      const { error } = await clientA.rpc('founder_update_order_status', {
+        p_order_id: orderAId,
+        p_order_status: 'delivered',
+      });
+      if (error) {
+        pass('Founder Admin', '4.8 Customer A cannot invoke founder_update_order_status (denied)', error.message.slice(0, 80));
+      } else {
+        fail('Founder Admin', '4.8 Customer A was able to invoke founder_update_order_status!', 'No error returned');
+      }
+    }
+
+    // 4.9: Customer A CANNOT invoke founder_approve_bank_transfer
+    {
+      const { error } = await clientA.rpc('founder_approve_bank_transfer', {
+        p_transfer_id: transferAId,
+        p_founder_notes: 'Unauthorized attempt',
+      });
+      if (error) {
+        pass('Founder Admin', '4.9 Customer A cannot invoke founder_approve_bank_transfer (denied)', error.message.slice(0, 80));
+      } else {
+        fail('Founder Admin', '4.9 Customer A was able to invoke founder_approve_bank_transfer!', 'No error returned');
+      }
+    }
+
+    // 4.10: Customer A CANNOT invoke founder_reject_bank_transfer
+    {
+      const { error } = await clientA.rpc('founder_reject_bank_transfer', {
+        p_transfer_id: transferAId,
+        p_reason: 'Unauthorized attempt',
+      });
+      if (error) {
+        pass('Founder Admin', '4.10 Customer A cannot invoke founder_reject_bank_transfer (denied)', error.message.slice(0, 80));
+      } else {
+        fail('Founder Admin', '4.10 Customer A was able to invoke founder_reject_bank_transfer!', 'No error returned');
+      }
+    }
+
+    // 4.11: Founder Admin can invoke founder_update_order_status
+    {
+      const { data: updateRes, error: updateErr } = await clientAdmin.rpc('founder_update_order_status', {
+        p_order_id: orderAId,
+        p_order_status: 'production',
+        p_payment_status: 'cod_collected',
+      });
+      if (!updateErr && updateRes) {
+        const { data: orderCheck } = await adminClient
+          .from('orders')
+          .select('order_status, payment_status')
+          .eq('id', orderAId)
+          .single();
+        if (orderCheck?.order_status === 'production' && orderCheck?.payment_status === 'cod_collected') {
+          pass('Founder Admin', '4.11 Founder Admin successfully updated order_status to production & payment_status to cod_collected', '');
+        } else {
+          fail('Founder Admin', '4.11 Order status mismatch after founder update', JSON.stringify(orderCheck));
+        }
+      } else {
+        fail('Founder Admin', '4.11 Founder Admin invoke founder_update_order_status failed', updateErr?.message || 'no data');
+      }
+    }
+
 
   } catch (unexpectedErr) {
     // Any unhandled exception = immediate suite failure

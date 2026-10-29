@@ -161,3 +161,20 @@ test('authService reflects Supabase configuration state', () => {
   const configured = dataAdapter.isLiveBackend();
   assert.equal(typeof configured, 'boolean');
 });
+
+test('dataAdapter.isFounderAdmin returns false when unauthenticated or offline', async () => {
+  const isFounder = await dataAdapter.isFounderAdmin();
+  assert.equal(isFounder, false);
+});
+
+test('dataAdapter.getFounderData returns valid administrative schema', async () => {
+  const data = await dataAdapter.getFounderData();
+  assert.ok(data);
+  assert.ok(Array.isArray(data.orders));
+  assert.ok(Array.isArray(data.profiles));
+  assert.ok(Array.isArray(data.registry));
+  assert.ok(Array.isArray(data.transfers));
+  assert.ok(data.settings);
+  assert.equal(typeof data.settings.starterBrandedPriceMAD, 'number');
+});
+

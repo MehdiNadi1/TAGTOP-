@@ -612,6 +612,20 @@ export interface Translations {
     orderStep5: string;
     orderStep6: string;
     orderStep7: string;
+    verifyingPermissions: string;
+    accessDeniedTitle: string;
+    accessDeniedDesc: string;
+    accessDeniedCustomerRole: string;
+    loginAsFounderBtn: string;
+    backToClientAreaBtn: string;
+    backToHomeBtn: string;
+    adminRoleVerified: string;
+    adminSessionActive: string;
+    founderSignOut: string;
+    loadingAdministrativeData: string;
+    errorLoadingData: string;
+    retryBtn: string;
+    mutationError: string;
   };
   app: {
     proofModificationSentAlert: string;
@@ -1296,6 +1310,20 @@ export const translations: Record<Language, Translations> = {
       orderStep5: '5. Puce liée',
       orderStep6: '6. Expédiée',
       orderStep7: '7. Livrée',
+      verifyingPermissions: 'Vérification des habilitations d’administration...',
+      accessDeniedTitle: 'Accès Réservé aux Administrateurs',
+      accessDeniedDesc: 'Cette console nécessite une authentification avec le rôle d’administrateur fondateur (founder_admin) vérifié par la base de données.',
+      accessDeniedCustomerRole: 'Votre compte actuel est un compte client et ne dispose pas des privilèges d’administration. L’accès a été strictement restreint conformément aux politiques de sécurité Supabase.',
+      loginAsFounderBtn: 'Se connecter avec un compte fondateur',
+      backToClientAreaBtn: 'Aller à l’espace client',
+      backToHomeBtn: 'Retour à l’accueil',
+      adminRoleVerified: 'Rôle Administrateur Vérifié',
+      adminSessionActive: 'Session Fondateur Active',
+      founderSignOut: 'Déconnexion Fondateur',
+      loadingAdministrativeData: 'Chargement des données administratives sécurisées...',
+      errorLoadingData: 'Erreur lors du chargement des données administratives :',
+      retryBtn: 'Réessayer',
+      mutationError: 'Échec de l’opération administrative :',
     },
     app: {
       proofModificationSentAlert: 'Vos remarques ont été transmises au fondateur pour modification du BAT.',
@@ -1978,6 +2006,20 @@ export const translations: Record<Language, Translations> = {
       orderStep5: '5. الشريحة مبرمجة',
       orderStep6: '6. تم الشحن',
       orderStep7: '7. تم التوصيل',
+      verifyingPermissions: 'جاري التحقق من صلاحيات الإدارة المعتمدة...',
+      accessDeniedTitle: 'منطقة مخصصة للمشرفين فقط',
+      accessDeniedDesc: 'تتطلب لوحة التحكم هذه تسجيل الدخول بحساب يحمل صلاحية المشرف المؤسس (founder_admin) الموثقة في قاعدة البيانات.',
+      accessDeniedCustomerRole: 'حسابك الحالي هو حساب عميل عادي ولا يمتلك الصلاحيات الإدارية المطلوبة. تم حظر الوصول وفقاً لسياسات الأمان المعتمدة في Supabase.',
+      loginAsFounderBtn: 'تسجيل الدخول بحساب المشرف',
+      backToClientAreaBtn: 'الانتقال إلى مساحة العميل',
+      backToHomeBtn: 'العودة إلى الموقع',
+      adminRoleVerified: 'صلاحية المشرف المؤسس مؤكدة',
+      adminSessionActive: 'جلسة المشرف نشطة',
+      founderSignOut: 'تسجيل خروج المشرف',
+      loadingAdministrativeData: 'جاري تحميل البيانات الإدارية الآمنة...',
+      errorLoadingData: 'حدث خطأ أثناء تحميل البيانات الإدارية:',
+      retryBtn: 'إعادة المحاولة',
+      mutationError: 'فشلت العملية الإدارية:',
     },
     app: {
       proofModificationSentAlert: 'تم إرسال ملاحظاتك إلى المؤسس لتعديل النموذج الأولي.',
@@ -2660,6 +2702,20 @@ export const translations: Record<Language, Translations> = {
       orderStep5: '5. Chip Linked',
       orderStep6: '6. Shipped',
       orderStep7: '7. Delivered',
+      verifyingPermissions: 'Verifying administrative permissions...',
+      accessDeniedTitle: 'Founder Admin Access Only',
+      accessDeniedDesc: 'This console requires authentication with a database-verified founder administrator role (founder_admin).',
+      accessDeniedCustomerRole: 'Your current account is an ordinary customer account and lacks administrative privileges. Access has been strictly restricted pursuant to Supabase security policies.',
+      loginAsFounderBtn: 'Sign in with Founder Account',
+      backToClientAreaBtn: 'Go to Client Area',
+      backToHomeBtn: 'Back to Home',
+      adminRoleVerified: 'Founder Admin Role Verified',
+      adminSessionActive: 'Founder Session Active',
+      founderSignOut: 'Sign Out',
+      loadingAdministrativeData: 'Loading secure administrative data...',
+      errorLoadingData: 'Error loading administrative data:',
+      retryBtn: 'Retry',
+      mutationError: 'Administrative operation failed:',
     },
     app: {
       proofModificationSentAlert: 'Your remarks have been sent to the founder for proof revisions.',

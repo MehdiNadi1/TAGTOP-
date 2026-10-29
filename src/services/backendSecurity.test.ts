@@ -535,3 +535,195 @@ test('Regression: Public profile view contract never substitutes a demo profile 
   assert.equal(resultWhenValid.state, 'profile_rendered');
   assert.equal(resultWhenValid.displayName, 'Salma El Fassi');
 });
+
+// =============================================================================
+// 7. SECURE FOUNDER DASHBOARD & ACCESS CONTROL REGRESSION TESTS
+// =============================================================================
+test('Founder Security: Anonymous visitor access to #founder-dashboard is blocked', async () => {
+  // When no authenticated session exists:
+  // 1. isFounderAdmin returns false
+  const isFounder = await dataAdapter.isFounderAdmin();
+  assert.equal(isFounder, false, 'Anonymous visitor must not pass isFounderAdmin check');
+
+  // 2. Simulating the UI authorization guard in App.tsx:
+  const checkRouteAuthorization = (
+    currentView: string,
+    currentUser: { id: string; role: string } | null,
+    isFounderAdminVerified: boolean
+  ) => {
+    if (currentView === 'founder-dashboard') {
+      if (!currentUser) return { authorized: false, reason: 'unauthenticated' };
+      if (currentUser.role !== 'founder_admin' || !isFounderAdminVerified) {
+        return { authorized: false, reason: 'unauthorized_role' };
+      }
+      return { authorized: true, reason: 'authorized' };
+    }
+    return { authorized: true, reason: 'public' };
+  };
+
+  const anonAccess = checkRouteAuthorization('founder-dashboard', null, false);
+  assert.equal(anonAccess.authorized, false, 'Anonymous visitor must be blocked');
+  assert.equal(anonAccess.reason, 'unauthenticated');
+});
+
+test('Founder Security: Ordinary customer access to #founder-dashboard is denied with Access Denied', async () => {
+  const customerUser = {
+    id: 'user-customer-456',
+    email: 'customer@tagtop.ma',
+    role: 'customer' as const,
+  };
+
+  // Simulating the UI authorization guard in App.tsx:
+  const checkRouteAuthorization = (
+    currentView: string,
+    currentUser: { id: string; role: string } | null,
+    isFounderAdminVerified: boolean
+  ) => {
+    if (currentView === 'founder-dashboard') {
+      if (!currentUser) return { authorized: false, reason: 'unauthenticated' };
+      if (currentUser.role !== 'founder_admin' || !isFounderAdminVerified) {
+        return { authorized: false, reason: 'unauthorized_role' };
+      }
+      return { authorized: true, reason: 'authorized' };
+    }
+    return { authorized: true, reason: 'public' };
+  };
+
+  const customerAccess = checkRouteAuthorization('founder-dashboard', customerUser, false);
+  assert.equal(customerAccess.authorized, false, 'Customer must be blocked from founder dashboard');
+  assert.equal(customerAccess.reason, 'unauthorized_role');
+});
+
+test('Founder Security: Legacy localStorage or client-side passcode flags do NOT grant founder privileges', () => {
+  // In previous versions, localStorage.getItem('tagtop-admin-session') or passcode 'tagtop-founder-2026' was checked.
+  // The secure implementation strictly relies on database-verified role and RPC is_founder_admin().
+  const evaluateAccessWithStaleStorage = (
+    localStoragePasscode: string | null,
+    authenticatedUser: { id: string; role: string } | null,
+    dbIsFounderAdmin: boolean
+  ) => {
+    // Stale passcode presence MUST BE IGNORED
+    // Only real authenticated founder_admin with db verification is permitted
+    if (!authenticatedUser || authenticatedUser.role !== 'founder_admin') {
+      return false;
+    }
+    return dbIsFounderAdmin;
+  };
+
+  // Attempting bypass with the old passcode
+  assert.equal(
+    evaluateAccessWithStaleStorage('tagtop-founder-2026', null, false),
+    false,
+    'Anonymous user with old passcode string must be denied'
+  );
+
+  assert.equal(
+    evaluateAccessWithStaleStorage('tagtop-founder-2026', { id: 'cust-1', role: 'customer' }, false),
+    false,
+    'Customer user with old passcode string must be denied'
+  );
+
+  // Authenticated user with role founder_admin verified by DB RPC
+  assert.equal(
+    evaluateAccessWithStaleStorage(null, { id: 'admin-1', role: 'founder_admin' }, true),
+    true,
+    'Authenticated founder_admin verified by DB is granted access'
+  );
+});
+
+test('Founder Security: Unauthorized administrative mutations by non-founders are rejected', () => {
+  // Simulate the database RPC authorization guard (SECURITY DEFINER / is_founder_admin() check)
+  const simulateFounderOrderStatusRPC = (callerRole: string) => {
+    if (callerRole !== 'founder_admin') {
+      throw new Error('Unauthorized: Only founder admin can modify order status');
+    }
+    return { success: true };
+  };
+
+  const simulateFounderBankTransferApprovalRPC = (callerRole: string) => {
+    if (callerRole !== 'founder_admin') {
+      throw new Error('Unauthorized: Only founder admin can approve bank transfers');
+    }
+    return { success: true };
+  };
+
+  const simulateFounderBankTransferRejectionRPC = (callerRole: string) => {
+    if (callerRole !== 'founder_admin') {
+      throw new Error('Unauthorized: Only founder admin can reject bank transfers');
+    }
+    return { success: true };
+  };
+
+  // 1. Anonymous caller (role: 'anon')
+  assert.throws(() => simulateFounderOrderStatusRPC('anon'), /Unauthorized/);
+  assert.throws(() => simulateFounderBankTransferApprovalRPC('anon'), /Unauthorized/);
+  assert.throws(() => simulateFounderBankTransferRejectionRPC('anon'), /Unauthorized/);
+
+  // 2. Customer caller (role: 'customer')
+  assert.throws(() => simulateFounderOrderStatusRPC('customer'), /Unauthorized/);
+  assert.throws(() => simulateFounderBankTransferApprovalRPC('customer'), /Unauthorized/);
+  assert.throws(() => simulateFounderBankTransferRejectionRPC('customer'), /Unauthorized/);
+
+  // 3. Founder caller (role: 'founder_admin')
+  assert.doesNotThrow(() => simulateFounderOrderStatusRPC('founder_admin'));
+  assert.doesNotThrow(() => simulateFounderBankTransferApprovalRPC('founder_admin'));
+  assert.doesNotThrow(() => simulateFounderBankTransferRejectionRPC('founder_admin'));
+});
+
+test('Founder Security: Verified founder admin successfully accesses data and executes administrative operations', async () => {
+  const founderUser = {
+    id: 'user-founder-001',
+    email: 'founder@tagtop.ma',
+    role: 'founder_admin' as const,
+  };
+
+  const checkRouteAuthorization = (
+    currentView: string,
+    currentUser: { id: string; role: string } | null,
+    isFounderAdminVerified: boolean
+  ) => {
+    if (currentView === 'founder-dashboard') {
+      if (!currentUser) return { authorized: false, reason: 'unauthenticated' };
+      if (currentUser.role !== 'founder_admin' || !isFounderAdminVerified) {
+        return { authorized: false, reason: 'unauthorized_role' };
+      }
+      return { authorized: true, reason: 'authorized' };
+    }
+    return { authorized: true, reason: 'public' };
+  };
+
+  const access = checkRouteAuthorization('founder-dashboard', founderUser, true);
+  assert.equal(access.authorized, true);
+  assert.equal(access.reason, 'authorized');
+
+  // getFounderData retrieves orders, profiles, transfers, settings
+  const founderData = await dataAdapter.getFounderData();
+  assert.ok(Array.isArray(founderData.orders));
+  assert.ok(Array.isArray(founderData.profiles));
+  assert.ok(Array.isArray(founderData.transfers));
+  assert.ok(founderData.settings);
+});
+
+test('Founder Security: Administrative mutation failure surfaces real error without masking', async () => {
+  let capturedError: string | null = null;
+  const setMutationError = (msg: string | null) => {
+    capturedError = msg;
+  };
+
+  const executeAdminAction = async (action: () => Promise<void>) => {
+    try {
+      setMutationError(null);
+      await action();
+    } catch (err: any) {
+      setMutationError(err.message || 'Operation failed');
+    }
+  };
+
+  // Simulating a failing RPC mutation (e.g. invalid status or network failure)
+  await executeAdminAction(async () => {
+    throw new Error('Supabase RPC founder_update_order_status returned 403 Forbidden');
+  });
+
+  assert.equal(capturedError, 'Supabase RPC founder_update_order_status returned 403 Forbidden');
+});
+

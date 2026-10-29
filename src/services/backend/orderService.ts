@@ -12,7 +12,7 @@ import { Database } from '../../types/database.types';
 
 type OrderRow = Database['public']['Tables']['orders']['Row'];
 
-function mapRowToOrder(row: OrderRow): NfcCardOrder {
+export function mapRowToOrder(row: OrderRow): NfcCardOrder {
   return {
     id: row.id,
     customerName: row.customer_name,

@@ -54,7 +54,7 @@ import { ContactQuoteModal } from './components/modals/ContactQuoteModal';
 import { CustomerAuth } from './components/auth/CustomerAuth';
 import { translations } from './i18n/translations';
 import { TAGTOP_LOGO_URL } from './utils/assets';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Shield } from 'lucide-react';
 
 export default function App() {
   // Global presentation language (persisted in localStorage, default initial: 'fr')
@@ -94,6 +94,17 @@ export default function App() {
   const [transfers, setTransfers] = useState<BankTransferRenewal[]>(() => getStoredTransfers());
   const [settings, setSettings] = useState<SystemSettings>(() => getStoredSettings());
 
+  // Founder Administration state
+  const [isFounderVerifying, setIsFounderVerifying] = useState<boolean>(false);
+  const [isVerifiedFounderAdmin, setIsVerifiedFounderAdmin] = useState<boolean>(false);
+  const [isFounderDataLoading, setIsFounderDataLoading] = useState<boolean>(false);
+  const [_founderDataError, setFounderDataError] = useState<string | null>(null);
+  const [founderProfiles, setFounderProfiles] = useState<BusinessProfile[]>([]);
+  const [founderOrders, setFounderOrders] = useState<NfcCardOrder[]>([]);
+  const [founderRegistry, setFounderRegistry] = useState<NfcCardRegistryItem[]>([]);
+  const [founderTransfers, setFounderTransfers] = useState<BankTransferRenewal[]>([]);
+  const [founderSettings, setFounderSettings] = useState<SystemSettings>(() => getStoredSettings());
+
   // Public Profile Asynchronous Resolution
   const [loadedPublicProfile, setLoadedPublicProfile] = useState<BusinessProfile | null>(null);
   const [isPublicProfileLoading, setIsPublicProfileLoading] = useState<boolean>(false);
@@ -131,6 +142,64 @@ export default function App() {
       setIsCustomerDataLoading(false);
     }
   };
+
+  // Load full platform administrative data for verified founder admin
+  const loadFounderData = async () => {
+    setIsFounderDataLoading(true);
+    setFounderDataError(null);
+    try {
+      const data = await dataAdapter.getFounderData();
+      setFounderProfiles(data.profiles);
+      setFounderOrders(data.orders);
+      setFounderRegistry(data.registry);
+      setFounderTransfers(data.transfers);
+      setFounderSettings(data.settings);
+    } catch (err: any) {
+      console.error('[TAGTOP App] Error loading founder data:', err);
+      setFounderDataError(err.message || 'Failed to load administrative data');
+    } finally {
+      setIsFounderDataLoading(false);
+    }
+  };
+
+  // Founder Admin Permission Verification & Data Loading
+  useEffect(() => {
+    if (currentView !== 'founder-dashboard') return;
+
+    if (!isSupabaseConfigured()) {
+      setIsVerifiedFounderAdmin(false);
+      return;
+    }
+
+    if (!currentUser) {
+      setIsVerifiedFounderAdmin(false);
+      return;
+    }
+
+    if (currentUser.role !== 'founder_admin') {
+      setIsVerifiedFounderAdmin(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsFounderVerifying(true);
+    dataAdapter.isFounderAdmin().then((isAllowed) => {
+      if (!isMounted) return;
+      setIsVerifiedFounderAdmin(isAllowed);
+      if (isAllowed) {
+        loadFounderData();
+      }
+    }).catch(() => {
+      if (!isMounted) return;
+      setIsVerifiedFounderAdmin(false);
+    }).finally(() => {
+      if (isMounted) setIsFounderVerifying(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentView, currentUser]);
 
   // Supabase Authentication Lifecycle & Persistent Session Recovery
   useEffect(() => {
@@ -294,6 +363,11 @@ export default function App() {
       console.warn('[TAGTOP App] Sign out error:', err);
     }
     setCurrentUser(null);
+    setIsVerifiedFounderAdmin(false);
+    setFounderProfiles([]);
+    setFounderOrders([]);
+    setFounderRegistry([]);
+    setFounderTransfers([]);
     if (isSupabaseConfigured()) {
       setProfiles([]);
       setOrders([]);
@@ -337,100 +411,81 @@ export default function App() {
     setTransfers(updated);
   };
 
-  const handleFounderApproveTransfer = (transferId: string, founderNotes: string) => {
-    const targetTransfer = transfers.find((t) => t.id === transferId);
-    if (!targetTransfer) return;
-
-    const nextTransfers = transfers.map((t) =>
-      t.id === transferId
-        ? { ...t, status: 'approved' as const, founderNotes, verifiedAt: new Date().toISOString() }
-        : t
+  const handleFounderApproveTransfer = async (transferId: string, founderNotes: string) => {
+    const result = await dataAdapter.founderApproveTransfer(transferId, founderNotes);
+    setFounderTransfers((prev) =>
+      prev.map((t) =>
+        t.id === transferId
+          ? { ...t, status: 'approved' as const, founderNotes, verifiedAt: new Date().toISOString() }
+          : t
+      )
     );
-    setTransfers(nextTransfers);
-    saveTransfers(nextTransfers);
-
-    // Extend access date for the associated profile
-    setProfiles((prev) => {
-      const next = prev.map((p) => {
-        if (p.id === targetTransfer.profileId) {
-          const currentExpiry = new Date(p.expiryDate);
-          const addDays = targetTransfer.amountMAD === 150 ? 180 : 365;
-          currentExpiry.setDate(currentExpiry.getDate() + addDays);
-          const updatedProfile = {
-            ...p,
-            accessState: 'active' as const,
-            expiryDate: currentExpiry.toISOString().split('T')[0],
-          };
-          updateStoredProfile(updatedProfile);
-          return updatedProfile;
-        }
-        return p;
-      });
-      return next;
-    });
-  };
-
-  const handleFounderRejectTransfer = (transferId: string, reason: string) => {
-    const next = transfers.map((t) =>
-      t.id === transferId
-        ? { ...t, status: 'rejected' as const, founderNotes: reason }
-        : t
-    );
-    setTransfers(next);
-    saveTransfers(next);
-  };
-
-  const handleUpdateOrderStatus = (orderId: string, newStatus: any) => {
-    const nextOrders = orders.map((o) => (o.id === orderId ? { ...o, orderStatus: newStatus } : o));
-    setOrders(nextOrders);
-    saveOrders(nextOrders);
-
-    // If delivered and paid, unlock profile to active
-    if (newStatus === 'delivered') {
-      const order = orders.find((o) => o.id === orderId);
-      if (order) {
-        setProfiles((prev) => {
-          const next = prev.map((p) => {
-            if (p.id === order.profileId) {
-              const updated = {
-                ...p,
-                accessState: 'active' as const,
-                linkedCardCount: (p.linkedCardCount || 0) + 1,
-              };
-              updateStoredProfile(updated);
-              return updated;
-            }
-            return p;
-          });
-          return next;
-        });
+    if (result.newExpiryDate) {
+      const target = founderTransfers.find((t) => t.id === transferId);
+      if (target) {
+        setFounderProfiles((prev) =>
+          prev.map((p) =>
+            p.id === target.profileId
+              ? { ...p, accessState: 'active' as const, expiryDate: result.newExpiryDate! }
+              : p
+          )
+        );
       }
     }
   };
 
-  const handleUpdatePaymentStatus = (orderId: string, paymentStatus: any) => {
-    const nextOrders = orders.map((o) => (o.id === orderId ? { ...o, paymentStatus } : o));
-    setOrders(nextOrders);
-    saveOrders(nextOrders);
+  const handleFounderRejectTransfer = async (transferId: string, reason: string) => {
+    await dataAdapter.founderRejectTransfer(transferId, reason);
+    setFounderTransfers((prev) =>
+      prev.map((t) =>
+        t.id === transferId
+          ? { ...t, status: 'rejected' as const, founderNotes: reason, verifiedAt: new Date().toISOString() }
+          : t
+      )
+    );
   };
 
-  const handleUpdateProfileAccess = (profileId: string, newState: any) => {
-    setProfiles((prev) => {
-      const next = prev.map((p) => {
-        if (p.id === profileId) {
-          const updated = { ...p, accessState: newState };
-          updateStoredProfile(updated);
-          return updated;
-        }
-        return p;
-      });
-      return next;
-    });
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: any) => {
+    await dataAdapter.founderUpdateOrderStatus(orderId, newStatus);
+    setFounderOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, orderStatus: newStatus } : o))
+    );
+    if (newStatus === 'delivered') {
+      const ord = founderOrders.find((o) => o.id === orderId);
+      if (ord && ord.profileId) {
+        setFounderProfiles((prev) =>
+          prev.map((p) =>
+            p.id === ord.profileId
+              ? {
+                  ...p,
+                  accessState: 'active' as const,
+                  linkedCardCount: (p.linkedCardCount || 0) + ord.cardQuantity,
+                }
+              : p
+          )
+        );
+      }
+    }
   };
 
-  const handleUpdateSettings = (newSettings: SystemSettings) => {
-    setSettings(newSettings);
-    saveSettings(newSettings);
+  const handleUpdatePaymentStatus = async (orderId: string, paymentStatus: any) => {
+    const ord = founderOrders.find((o) => o.id === orderId);
+    await dataAdapter.founderUpdateOrderStatus(orderId, ord?.orderStatus || 'received', paymentStatus);
+    setFounderOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, paymentStatus } : o))
+    );
+  };
+
+  const handleUpdateProfileAccess = async (profileId: string, newState: any) => {
+    await dataAdapter.founderUpdateProfileAccess(profileId, newState);
+    setFounderProfiles((prev) =>
+      prev.map((p) => (p.id === profileId ? { ...p, accessState: newState } : p))
+    );
+  };
+
+  const handleUpdateSettings = async (newSettings: SystemSettings) => {
+    await dataAdapter.founderUpdateSettings(newSettings);
+    setFounderSettings(newSettings);
   };
 
   const handleLeadSubmitted = (lead: LeadSubmission) => {
@@ -505,23 +560,117 @@ export default function App() {
         </>
       )}
 
-      {/* VIEW 2: FOUNDER / ADMIN DASHBOARD */}
+      {/* VIEW 2: FOUNDER / ADMIN DASHBOARD (RESTRICTED TO FOUNDER_ADMIN) */}
       {currentView === 'founder-dashboard' && (
-        <FounderDashboard
-          currentLanguage={currentLanguage}
-          profiles={profiles}
-          orders={orders}
-          registry={registry}
-          transfers={transfers}
-          settings={settings}
-          onUpdateOrderStatus={handleUpdateOrderStatus}
-          onUpdatePaymentStatus={handleUpdatePaymentStatus}
-          onApproveTransfer={handleFounderApproveTransfer}
-          onRejectTransfer={handleFounderRejectTransfer}
-          onUpdateProfileAccess={handleUpdateProfileAccess}
-          onUpdateSettings={handleUpdateSettings}
-          onViewChange={setCurrentView}
-        />
+        <>
+          {isAuthLoading || isFounderVerifying ? (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+              <div className="bg-neutral-900 p-8 rounded-3xl border border-neutral-800 shadow-xl text-center max-w-sm w-full animate-fadeIn">
+                <div className="w-12 h-12 bg-amber-400/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto mb-3 font-bold">
+                  <Shield className="w-6 h-6 animate-pulse" />
+                </div>
+                <div className="w-7 h-7 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-xs font-semibold text-neutral-300">
+                  {translations[currentLanguage].founderDashboard.verifyingPermissions}
+                </p>
+              </div>
+            </div>
+          ) : !currentUser ? (
+            <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center py-12 px-4">
+              <div className="max-w-md w-full bg-neutral-900 rounded-3xl p-8 border border-neutral-800 shadow-2xl space-y-6 text-center">
+                <div className="w-14 h-14 bg-red-500/20 text-red-400 border border-red-500/30 rounded-2xl mx-auto flex items-center justify-center shadow-md">
+                  <Shield className="w-7 h-7" />
+                </div>
+                <div className="space-y-2">
+                  <h1 className="text-xl font-black text-white">
+                    {translations[currentLanguage].founderDashboard.accessDeniedTitle}
+                  </h1>
+                  <p className="text-xs text-neutral-400 leading-relaxed">
+                    {translations[currentLanguage].founderDashboard.accessDeniedDesc}
+                  </p>
+                </div>
+                <div className="pt-2 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('customer-dashboard')}
+                    className="w-full bg-amber-400 hover:bg-amber-500 text-black font-extrabold py-3 rounded-xl transition-all shadow-md text-xs cursor-pointer"
+                  >
+                    {translations[currentLanguage].founderDashboard.loginAsFounderBtn}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('marketing')}
+                    className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold py-2.5 rounded-xl transition-all text-xs cursor-pointer"
+                  >
+                    {translations[currentLanguage].founderDashboard.backToHomeBtn}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : !isVerifiedFounderAdmin ? (
+            <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center py-12 px-4">
+              <div className="max-w-md w-full bg-neutral-900 rounded-3xl p-8 border border-red-900/40 shadow-2xl space-y-6 text-center">
+                <div className="w-14 h-14 bg-amber-400/10 text-amber-400 border border-amber-400/30 rounded-2xl mx-auto flex items-center justify-center shadow-md">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <div className="space-y-2">
+                  <span className="text-[10px] font-mono uppercase bg-red-950 text-red-400 border border-red-800 px-2.5 py-0.5 rounded font-bold">
+                    role: {currentUser.role} (unauthorized)
+                  </span>
+                  <h1 className="text-xl font-black text-white">
+                    {translations[currentLanguage].founderDashboard.accessDeniedTitle}
+                  </h1>
+                  <p className="text-xs text-neutral-300 leading-relaxed">
+                    {translations[currentLanguage].founderDashboard.accessDeniedCustomerRole}
+                  </p>
+                </div>
+                <div className="pt-2 space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('customer-dashboard')}
+                    className="w-full bg-amber-400 hover:bg-amber-500 text-black font-extrabold py-3 rounded-xl transition-all shadow-md text-xs cursor-pointer"
+                  >
+                    {translations[currentLanguage].founderDashboard.backToClientAreaBtn}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentView('marketing')}
+                    className="w-full bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-semibold py-2.5 rounded-xl transition-all text-xs cursor-pointer"
+                  >
+                    {translations[currentLanguage].founderDashboard.backToHomeBtn}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : isFounderDataLoading ? (
+            <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+              <div className="bg-neutral-900 p-8 rounded-3xl border border-neutral-800 shadow-xl text-center max-w-sm w-full animate-fadeIn">
+                <div className="w-8 h-8 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-xs font-semibold text-neutral-300">
+                  {translations[currentLanguage].founderDashboard.loadingAdministrativeData}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <FounderDashboard
+              currentLanguage={currentLanguage}
+              currentUser={currentUser}
+              profiles={founderProfiles}
+              orders={founderOrders}
+              registry={founderRegistry}
+              transfers={founderTransfers}
+              settings={founderSettings}
+              onUpdateOrderStatus={handleUpdateOrderStatus}
+              onUpdatePaymentStatus={handleUpdatePaymentStatus}
+              onApproveTransfer={handleFounderApproveTransfer}
+              onRejectTransfer={handleFounderRejectTransfer}
+              onUpdateProfileAccess={handleUpdateProfileAccess}
+              onUpdateSettings={handleUpdateSettings}
+              onViewChange={setCurrentView}
+              onSignOut={handleSignOut}
+            />
+          )}
+        </>
       )}
 
       {/* VIEW 3: LIVE PUBLIC PROFILE PREVIEW */}

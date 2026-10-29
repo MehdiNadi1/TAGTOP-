@@ -11,15 +11,34 @@
  * into localStorage. LocalStorage persistence is exclusively reserved for explicit demo/offline mode.
  */
 
-import { Language, BusinessProfile, NfcCardOrder, LeadSubmission } from '../types';
+import {
+  Language,
+  BusinessProfile,
+  NfcCardOrder,
+  LeadSubmission,
+  NfcCardRegistryItem,
+  BankTransferRenewal,
+  SystemSettings,
+  ProfileAccessState,
+} from '../types';
 import { isSupabaseConfigured } from './supabase/client';
 import { profileService } from './backend/profileService';
 import { orderService } from './backend/orderService';
 import { leadService, cardService } from './backend/leadService';
+import { adminService } from './backend/adminService';
+import {
+  TagtopOrderStatus,
+  TagtopPaymentStatus,
+  TagtopProfileAccessState,
+} from '../types/database.types';
 import {
   getStoredProfiles,
   updateStoredProfile,
   getStoredRegistry,
+  getStoredTransfers,
+  saveTransfers,
+  getStoredSettings,
+  saveSettings,
   addStoredLead,
   addStoredOrder,
   saveOrders,
@@ -246,5 +265,179 @@ export const dataAdapter = {
         : o
     );
     saveOrders(updated);
+  },
+
+  // ===========================================================================
+  // FOUNDER ADMIN OPERATIONS
+  // ===========================================================================
+
+  /**
+   * Verifies if authenticated caller is a founder admin via RPC.
+   */
+  async isFounderAdmin(): Promise<boolean> {
+    if (isSupabaseConfigured()) {
+      return await adminService.isFounderAdmin();
+    }
+    return false;
+  },
+
+  /**
+   * Loads full platform data for the Founder Admin console.
+   */
+  async getFounderData(): Promise<{
+    profiles: BusinessProfile[];
+    orders: NfcCardOrder[];
+    registry: NfcCardRegistryItem[];
+    transfers: BankTransferRenewal[];
+    settings: SystemSettings;
+  }> {
+    if (isSupabaseConfigured()) {
+      const [profiles, orders, transfers, settings] = await Promise.all([
+        adminService.getAllProfiles(),
+        adminService.getAllOrders(),
+        adminService.getAllBankTransfers(),
+        adminService.getSystemSettings(),
+      ]);
+      const profileMap = new Map(profiles.map((p) => [p.id, p.displayName]));
+      const registry = await adminService.getAllNfcCards(profileMap);
+      return { profiles, orders, registry, transfers, settings };
+    }
+
+    // Explicit Demo Mode Fallback
+    return {
+      profiles: getStoredProfiles(),
+      orders: getStoredOrders(),
+      registry: getStoredRegistry(),
+      transfers: getStoredTransfers(),
+      settings: getStoredSettings(),
+    };
+  },
+
+  /**
+   * Updates order fulfillment status or COD payment status via RPC.
+   */
+  async founderUpdateOrderStatus(
+    orderId: string,
+    orderStatus: TagtopOrderStatus,
+    paymentStatus?: TagtopPaymentStatus
+  ): Promise<void> {
+    if (isSupabaseConfigured()) {
+      await adminService.updateOrderStatus(orderId, orderStatus, paymentStatus);
+      return;
+    }
+
+    // Demo Mode Fallback
+    const current = getStoredOrders();
+    const updated = current.map((o) => {
+      if (o.id === orderId) {
+        return {
+          ...o,
+          orderStatus: (orderStatus || o.orderStatus) as any,
+          paymentStatus: (paymentStatus || o.paymentStatus) as any,
+        };
+      }
+      return o;
+    });
+    saveOrders(updated);
+  },
+
+  /**
+   * Approves a bank transfer renewal and extends subscription via RPC.
+   */
+  async founderApproveTransfer(
+    transferId: string,
+    founderNotes = ''
+  ): Promise<{ success: boolean; newExpiryDate?: string }> {
+    if (isSupabaseConfigured()) {
+      return await adminService.approveBankTransfer(transferId, founderNotes);
+    }
+
+    // Demo Mode Fallback
+    const transfers = getStoredTransfers();
+    const target = transfers.find((t) => t.id === transferId);
+    if (!target) throw new Error('Transfer not found');
+
+    const nextTransfers = transfers.map((t) =>
+      t.id === transferId
+        ? { ...t, status: 'approved' as const, founderNotes, verifiedAt: new Date().toISOString() }
+        : t
+    );
+    saveTransfers(nextTransfers);
+
+    const profiles = getStoredProfiles();
+    const targetProfile = profiles.find((p) => p.id === target.profileId);
+    let newExpiryStr: string | undefined;
+    if (targetProfile) {
+      const currentExpiry = new Date(targetProfile.expiryDate);
+      const addDays = target.amountMAD === 150 ? 180 : 365;
+      currentExpiry.setDate(currentExpiry.getDate() + addDays);
+      newExpiryStr = currentExpiry.toISOString().split('T')[0];
+      updateStoredProfile({
+        ...targetProfile,
+        accessState: 'active',
+        expiryDate: newExpiryStr,
+      });
+    }
+
+    return { success: true, newExpiryDate: newExpiryStr };
+  },
+
+  /**
+   * Rejects a bank transfer with notes via RPC.
+   */
+  async founderRejectTransfer(transferId: string, reason: string): Promise<void> {
+    if (isSupabaseConfigured()) {
+      await adminService.rejectBankTransfer(transferId, reason);
+      return;
+    }
+
+    // Demo Mode Fallback
+    const transfers = getStoredTransfers();
+    const nextTransfers = transfers.map((t) =>
+      t.id === transferId
+        ? { ...t, status: 'rejected' as const, founderNotes: reason }
+        : t
+    );
+    saveTransfers(nextTransfers);
+  },
+
+  /**
+   * Updates profile access state.
+   */
+  async founderUpdateProfileAccess(profileId: string, newState: ProfileAccessState | TagtopProfileAccessState): Promise<void> {
+    if (isSupabaseConfigured()) {
+      await adminService.updateProfileAccessState(profileId, newState);
+      return;
+    }
+
+    // Demo Mode Fallback
+    const profiles = getStoredProfiles();
+    const target = profiles.find((p) => p.id === profileId);
+    if (target) {
+      updateStoredProfile({ ...target, accessState: newState as any });
+    }
+  },
+
+  /**
+   * Updates platform system settings.
+   */
+  async founderUpdateSettings(newSettings: SystemSettings): Promise<void> {
+    if (isSupabaseConfigured()) {
+      await adminService.updateSystemSettings(newSettings);
+      return;
+    }
+
+    // Demo Mode Fallback
+    saveSettings(newSettings);
+  },
+
+  /**
+   * Evaluates subscription lifecycles across all profiles.
+   */
+  async founderEvaluateSubscriptions(): Promise<{ evaluated_date: string; profiles_in_grace: number; profiles_suspended: number }> {
+    if (isSupabaseConfigured()) {
+      return await adminService.evaluateSubscriptions();
+    }
+    return { evaluated_date: new Date().toISOString().split('T')[0], profiles_in_grace: 0, profiles_suspended: 0 };
   },
 };

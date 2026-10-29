@@ -12,7 +12,7 @@ import { Database } from '../../types/database.types';
 
 type ProfileRow = Database['public']['Tables']['business_profiles']['Row'];
 
-function mapRowToBusinessProfile(row: ProfileRow, ownerEmail = ''): BusinessProfile {
+export function mapRowToBusinessProfile(row: ProfileRow, ownerEmail = ''): BusinessProfile {
   return {
     id: row.id,
     ownerId: row.owner_id || '',
