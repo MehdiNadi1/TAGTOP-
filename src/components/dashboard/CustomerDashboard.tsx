@@ -29,9 +29,26 @@ import {
   Smartphone,
   LogOut,
   AlertCircle,
+  Linkedin,
+  Instagram,
+  Facebook,
+  Twitter,
+  Youtube,
+  Image as ImageIcon,
+  Building2,
+  RefreshCw,
 } from 'lucide-react';
 import { AuthUserProfile } from '../../services/backend/authService';
 import { CreateProfileModal } from '../modals/CreateProfileModal';
+import { dataAdapter } from '../../services/dataAdapter';
+import { ProfileAnalyticsSummary } from '../../services/backend/profileService';
+import { isValidExternalUrl, sanitizeExternalUrl } from '../../utils/pricingAndAccess';
+
+const TikTokIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.67 6.34 6.34 0 0 0 9.33 22a6.34 6.34 0 0 0 6.34-6.33V9.17a8.16 8.16 0 0 0 4.8-1.54l-.88-.94Z" />
+  </svg>
+);
 
 interface CustomerDashboardProps {
   currentLanguage: Language;
@@ -116,6 +133,42 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   // Leads search
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
 
+  // Analytics state
+  const [profileAnalytics, setProfileAnalytics] = useState<ProfileAnalyticsSummary | null>(null);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    if (!selectedProfileId) {
+      setProfileAnalytics(null);
+      return;
+    }
+    setIsAnalyticsLoading(true);
+    setAnalyticsError(null);
+    dataAdapter.getProfileAnalytics(selectedProfileId)
+      .then((data) => {
+        if (isMounted) {
+          setProfileAnalytics(data);
+        }
+      })
+      .catch((err) => {
+        if (isMounted) {
+          console.warn('[TAGTOP] Error loading analytics:', err);
+          setAnalyticsError(err?.message || 'Error loading analytics');
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsAnalyticsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedProfileId]);
+
   // Sync editor when profile changes
   React.useEffect(() => {
     if (currentProfile) {
@@ -126,10 +179,50 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const handleSaveProfileChanges = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editorData) return;
+
+    if (editorData.avatarUrl && !isValidExternalUrl(editorData.avatarUrl)) {
+      setSaveErrorMessage(t.customerDashboard.urlInvalidError);
+      return;
+    }
+    if (editorData.logoUrl && !isValidExternalUrl(editorData.logoUrl)) {
+      setSaveErrorMessage(t.customerDashboard.urlInvalidError);
+      return;
+    }
+    if (editorData.website && !isValidExternalUrl(editorData.website)) {
+      setSaveErrorMessage(t.customerDashboard.urlInvalidError);
+      return;
+    }
+
+    const socials = editorData.socials || {};
+    const socialKeys: (keyof typeof socials)[] = ['linkedin', 'instagram', 'facebook', 'tiktok', 'twitter', 'youtube'];
+    for (const key of socialKeys) {
+      const val = socials[key];
+      if (val && !isValidExternalUrl(val)) {
+        setSaveErrorMessage(t.customerDashboard.urlInvalidError);
+        return;
+      }
+    }
+
+    const cleanedProfile: BusinessProfile = {
+      ...editorData,
+      avatarUrl: sanitizeExternalUrl(editorData.avatarUrl),
+      logoUrl: sanitizeExternalUrl(editorData.logoUrl),
+      website: sanitizeExternalUrl(editorData.website),
+      socials: {
+        linkedin: sanitizeExternalUrl(socials.linkedin),
+        instagram: sanitizeExternalUrl(socials.instagram),
+        facebook: sanitizeExternalUrl(socials.facebook),
+        tiktok: sanitizeExternalUrl(socials.tiktok),
+        twitter: sanitizeExternalUrl(socials.twitter),
+        youtube: sanitizeExternalUrl(socials.youtube),
+      },
+    };
+
     setIsSavingProfile(true);
     setSaveErrorMessage(null);
     try {
-      await onUpdateProfile(editorData);
+      await onUpdateProfile(cleanedProfile);
+      setEditorData(cleanedProfile);
       setProfileSavedToast(true);
       setTimeout(() => setProfileSavedToast(false), 2500);
     } catch (err: any) {
@@ -418,7 +511,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <div className="bg-white p-5 rounded-2xl border border-neutral-200">
                     <p className="text-xs text-slate-500 font-medium">{t.customerDashboard.anonymousViews}</p>
                     <p className="text-2xl font-extrabold text-black mt-1 tabular-nums">
-                      148
+                      {isAnalyticsLoading ? '...' : (profileAnalytics?.taps ?? 0)}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-1">
                       {t.customerDashboard.tapsAndScans}
@@ -692,6 +785,173 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       </div>
                     </div>
 
+                    {/* Media / Photos & Logos */}
+                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="flex items-center gap-1.5 text-slate-700 font-semibold mb-1">
+                            <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{t.customerDashboard.avatarUrlLabel}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder={t.customerDashboard.avatarUrlPlaceholder}
+                            value={editorData.avatarUrl || ''}
+                            onChange={(e) => setEditorData({ ...editorData, avatarUrl: e.target.value })}
+                            className="w-full border border-slate-300 rounded-xl p-2.5 text-xs dir-ltr"
+                          />
+                          {editorData.avatarUrl && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <img
+                                src={editorData.avatarUrl}
+                                alt="Avatar preview"
+                                className="w-8 h-8 rounded-full object-cover border border-slate-200"
+                                onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                              />
+                              <span className="text-[10px] text-slate-400">Aperçu photo</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="flex items-center gap-1.5 text-slate-700 font-semibold mb-1">
+                            <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{t.customerDashboard.logoUrlLabel}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder={t.customerDashboard.logoUrlPlaceholder}
+                            value={editorData.logoUrl || ''}
+                            onChange={(e) => setEditorData({ ...editorData, logoUrl: e.target.value })}
+                            className="w-full border border-slate-300 rounded-xl p-2.5 text-xs dir-ltr"
+                          />
+                          {editorData.logoUrl && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <img
+                                src={editorData.logoUrl}
+                                alt="Logo preview"
+                                className="w-8 h-8 rounded-lg object-contain bg-slate-50 p-0.5 border border-slate-200"
+                                onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
+                              />
+                              <span className="text-[10px] text-slate-400">Aperçu logo</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Social Media & Links */}
+                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-xs">{t.customerDashboard.socialLinksTitle}</h4>
+                        <p className="text-[11px] text-slate-500">{t.customerDashboard.socialLinksSubtitle}</p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="flex items-center gap-1 text-slate-700 font-semibold mb-1 text-[11px]">
+                            <Linkedin className="w-3 h-3 text-[#0A66C2]" />
+                            <span>{t.customerDashboard.socialLinkedin}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://linkedin.com/in/..."
+                            value={editorData.socials?.linkedin || ''}
+                            onChange={(e) => setEditorData({
+                              ...editorData,
+                              socials: { ...(editorData.socials || {}), linkedin: e.target.value }
+                            })}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs dir-ltr"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="flex items-center gap-1 text-slate-700 font-semibold mb-1 text-[11px]">
+                            <Instagram className="w-3 h-3 text-[#E4405F]" />
+                            <span>{t.customerDashboard.socialInstagram}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://instagram.com/..."
+                            value={editorData.socials?.instagram || ''}
+                            onChange={(e) => setEditorData({
+                              ...editorData,
+                              socials: { ...(editorData.socials || {}), instagram: e.target.value }
+                            })}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs dir-ltr"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="flex items-center gap-1 text-slate-700 font-semibold mb-1 text-[11px]">
+                            <Facebook className="w-3 h-3 text-[#1877F2]" />
+                            <span>{t.customerDashboard.socialFacebook}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://facebook.com/..."
+                            value={editorData.socials?.facebook || ''}
+                            onChange={(e) => setEditorData({
+                              ...editorData,
+                              socials: { ...(editorData.socials || {}), facebook: e.target.value }
+                            })}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs dir-ltr"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="flex items-center gap-1 text-slate-700 font-semibold mb-1 text-[11px]">
+                            <TikTokIcon className="w-3 h-3 text-black" />
+                            <span>{t.customerDashboard.socialTiktok}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://tiktok.com/@..."
+                            value={editorData.socials?.tiktok || ''}
+                            onChange={(e) => setEditorData({
+                              ...editorData,
+                              socials: { ...(editorData.socials || {}), tiktok: e.target.value }
+                            })}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs dir-ltr"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="flex items-center gap-1 text-slate-700 font-semibold mb-1 text-[11px]">
+                            <Twitter className="w-3 h-3 text-slate-800" />
+                            <span>{t.customerDashboard.socialTwitter}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://x.com/..."
+                            value={editorData.socials?.twitter || ''}
+                            onChange={(e) => setEditorData({
+                              ...editorData,
+                              socials: { ...(editorData.socials || {}), twitter: e.target.value }
+                            })}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs dir-ltr"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="flex items-center gap-1 text-slate-700 font-semibold mb-1 text-[11px]">
+                            <Youtube className="w-3 h-3 text-[#FF0000]" />
+                            <span>{t.customerDashboard.socialYoutube}</span>
+                          </label>
+                          <input
+                            type="url"
+                            placeholder="https://youtube.com/@..."
+                            value={editorData.socials?.youtube || ''}
+                            onChange={(e) => setEditorData({
+                              ...editorData,
+                              socials: { ...(editorData.socials || {}), youtube: e.target.value }
+                            })}
+                            className="w-full border border-slate-300 rounded-xl p-2 text-xs dir-ltr"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Digital Branding Notice */}
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-[11px] text-neutral-600">
                       <strong>{t.customerDashboard.brandingNoticeTitle}</strong> {t.customerDashboard.brandingNoticeDesc}
@@ -928,24 +1188,55 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </span>
                 </div>
 
+                {isAnalyticsLoading && (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-600 flex items-center gap-2">
+                    <RefreshCw className="w-4 h-4 animate-spin text-amber-600 shrink-0" />
+                    <span>{t.customerDashboard.analyticsLoading}</span>
+                  </div>
+                )}
+
+                {analyticsError && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{analyticsError}</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
                     <p className="text-xs text-slate-500">{t.customerDashboard.metricTaps}</p>
-                    <p className="text-2xl font-black text-black tabular-nums mt-1">148</p>
+                    <p className="text-2xl font-black text-black tabular-nums mt-1">
+                      {isAnalyticsLoading ? '...' : (profileAnalytics?.taps ?? 0)}
+                    </p>
                   </div>
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
                     <p className="text-xs text-slate-500">{t.customerDashboard.metricWhatsApp}</p>
-                    <p className="text-2xl font-black text-emerald-600 tabular-nums mt-1">62</p>
+                    <p className="text-2xl font-black text-emerald-600 tabular-nums mt-1">
+                      {isAnalyticsLoading ? '...' : (profileAnalytics?.whatsappClicks ?? 0)}
+                    </p>
                   </div>
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
                     <p className="text-xs text-slate-500">{t.customerDashboard.metricVCard}</p>
-                    <p className="text-2xl font-black text-black tabular-nums mt-1">45</p>
+                    <p className="text-2xl font-black text-black tabular-nums mt-1">
+                      {isAnalyticsLoading ? '...' : (profileAnalytics?.vcardDownloads ?? 0)}
+                    </p>
                   </div>
                   <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200">
                     <p className="text-xs text-slate-500">{t.customerDashboard.metricForms}</p>
                     <p className="text-2xl font-black text-amber-600 tabular-nums mt-1">{leads.length}</p>
                   </div>
                 </div>
+
+                {!isAnalyticsLoading &&
+                  !analyticsError &&
+                  (profileAnalytics?.taps ?? 0) === 0 &&
+                  (profileAnalytics?.whatsappClicks ?? 0) === 0 &&
+                  (profileAnalytics?.vcardDownloads ?? 0) === 0 &&
+                  leads.length === 0 && (
+                    <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center text-xs text-slate-500">
+                      {t.customerDashboard.analyticsEmpty}
+                    </div>
+                  )}
               </div>
             )}
 

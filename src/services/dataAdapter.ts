@@ -46,6 +46,7 @@ import {
   saveOrders,
   getStoredOrders,
   getStoredLeads,
+  getStoredAnalytics,
   recordAnalyticsEvent as recordLocalAnalyticsEvent,
 } from './storage';
 
@@ -187,6 +188,24 @@ export const dataAdapter = {
     // Explicit Demo Mode Fallback
     const allLeads = getStoredLeads();
     return allLeads.filter((l) => l.profileId === profileId);
+  },
+
+  /**
+   * Retrieves aggregated analytics counters for an authenticated customer's profile.
+   * Reads from public.profile_analytics_summary protected by RLS.
+   */
+  async getProfileAnalytics(profileId: string): Promise<{ taps: number; whatsappClicks: number; vcardDownloads: number }> {
+    if (isSupabaseConfigured()) {
+      return await profileService.getProfileAnalytics(profileId);
+    }
+
+    // Explicit Demo Mode Fallback
+    const stored = getStoredAnalytics(profileId);
+    return {
+      taps: stored.taps,
+      whatsappClicks: stored.whatsappClicks,
+      vcardDownloads: stored.vcardDownloads,
+    };
   },
 
   /**

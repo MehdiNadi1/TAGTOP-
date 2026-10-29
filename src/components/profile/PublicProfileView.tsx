@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BusinessProfile, Language, LeadSubmission } from '../../types';
 import { translations } from '../../i18n/translations';
-import { downloadVCard, normalizeWhatsAppNumber } from '../../utils/pricingAndAccess';
+import { downloadVCard, normalizeWhatsAppNumber, isValidExternalUrl, sanitizeExternalUrl } from '../../utils/pricingAndAccess';
 import { dataAdapter } from '../../services/dataAdapter';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import {
@@ -17,7 +17,18 @@ import {
   Sparkles,
   FileText,
   UserPlus,
+  Linkedin,
+  Instagram,
+  Facebook,
+  Twitter,
+  Youtube,
 } from 'lucide-react';
+
+const TikTokIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 3 15.67 6.34 6.34 0 0 0 9.33 22a6.34 6.34 0 0 0 6.34-6.33V9.17a8.16 8.16 0 0 0 4.8-1.54l-.88-.94Z" />
+  </svg>
+);
 
 interface PublicProfileViewProps {
   profile: BusinessProfile;
@@ -54,6 +65,29 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
     setActiveTemplate(profile.templateId);
     setIsSimulatingExpired(overrideExpiredState || profile.accessState === 'expired_suspended');
   }, [profile.id, profile.templateId, profile.accessState, overrideExpiredState]);
+
+  // Image loading fallbacks
+  const [avatarFailed, setAvatarFailed] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+    setLogoFailed(false);
+  }, [profile.avatarUrl, profile.logoUrl]);
+
+  // Social Links with safe protocol validation
+  const rawSocials = profile.socials || {};
+  const socialCandidates = [
+    { platform: 'linkedin', label: 'LinkedIn', url: rawSocials.linkedin, icon: <Linkedin className="w-4 h-4 text-[#0077b5] shrink-0" /> },
+    { platform: 'instagram', label: 'Instagram', url: rawSocials.instagram, icon: <Instagram className="w-4 h-4 text-[#e4405f] shrink-0" /> },
+    { platform: 'facebook', label: 'Facebook', url: rawSocials.facebook, icon: <Facebook className="w-4 h-4 text-[#1877f2] shrink-0" /> },
+    { platform: 'tiktok', label: 'TikTok', url: rawSocials.tiktok, icon: <TikTokIcon className="w-4 h-4 text-slate-900 shrink-0" /> },
+    { platform: 'twitter', label: 'X (Twitter)', url: rawSocials.twitter, icon: <Twitter className="w-4 h-4 text-slate-900 shrink-0" /> },
+    { platform: 'youtube', label: 'YouTube', url: rawSocials.youtube, icon: <Youtube className="w-4 h-4 text-[#ff0000] shrink-0" /> },
+  ];
+  const activeSocials = socialCandidates
+    .map((s) => ({ ...s, sanitizedUrl: sanitizeExternalUrl(s.url || '') }))
+    .filter((s) => Boolean(s.sanitizedUrl && isValidExternalUrl(s.sanitizedUrl)));
 
   // Lead Form State
   const [leadName, setLeadName] = useState('');
@@ -256,15 +290,36 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
         {/* Cover & Profile Header */}
         <div className={`p-6 pt-10 text-center relative ${templateConfig.headerBg}`}>
 
+          {/* Company Logo (if available & valid) */}
+          {profile.logoUrl && isValidExternalUrl(profile.logoUrl) && !logoFailed && (
+            <div className="w-14 h-14 bg-white/95 rounded-2xl p-1.5 shadow-md mx-auto mb-3 flex items-center justify-center border border-white/20">
+              <img
+                src={profile.logoUrl}
+                alt={profile.company || 'Logo'}
+                onError={() => setLogoFailed(true)}
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
+          )}
+
           {/* Avatar / Monogram */}
           <div className="relative inline-block mb-3">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 to-amber-200 text-neutral-950 font-black text-2xl flex items-center justify-center mx-auto shadow-lg border-2 border-white/20">
-              {profile.displayName
-                .split(' ')
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join('')}
-            </div>
+            {profile.avatarUrl && isValidExternalUrl(profile.avatarUrl) && !avatarFailed ? (
+              <img
+                src={profile.avatarUrl}
+                alt={profile.displayName}
+                onError={() => setAvatarFailed(true)}
+                className="w-20 h-20 rounded-full object-cover mx-auto shadow-lg border-2 border-white/30"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 to-amber-200 text-neutral-950 font-black text-2xl flex items-center justify-center mx-auto shadow-lg border-2 border-white/20">
+                {profile.displayName
+                  .split(' ')
+                  .map((n) => n[0])
+                  .slice(0, 2)
+                  .join('')}
+              </div>
+            )}
             <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-white">
               <CheckCircle2 className="w-4 h-4" />
             </div>
@@ -366,6 +421,32 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
 
         {/* Profile Content Body */}
         <div className="p-5 space-y-6 bg-white">
+
+          {/* Social Media & Professional Networks */}
+          {activeSocials.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-800">
+                  {t.profile.socialsTitle}
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                {activeSocials.map((soc) => (
+                  <a
+                    key={soc.platform}
+                    href={soc.sanitizedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2.5 p-3 rounded-xl bg-neutral-50 border border-neutral-200/80 hover:border-amber-400 hover:bg-neutral-100/60 transition-colors text-xs font-semibold text-neutral-900"
+                  >
+                    {soc.icon}
+                    <span className="truncate">{soc.label}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Services & Offerings Showcase */}
           {profile.products.length > 0 && (

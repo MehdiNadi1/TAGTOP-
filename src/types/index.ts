@@ -133,6 +133,7 @@ export interface BusinessProfile {
     linkedin?: string;
     instagram?: string;
     facebook?: string;
+    tiktok?: string;
     twitter?: string;
     youtube?: string;
   };

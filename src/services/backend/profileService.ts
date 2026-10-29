@@ -12,6 +12,12 @@ import { Database } from '../../types/database.types';
 
 type ProfileRow = Database['public']['Tables']['business_profiles']['Row'];
 
+export interface ProfileAnalyticsSummary {
+  taps: number;
+  whatsappClicks: number;
+  vcardDownloads: number;
+}
+
 export function mapRowToBusinessProfile(row: ProfileRow, ownerEmail = ''): BusinessProfile {
   return {
     id: row.id,
@@ -203,5 +209,35 @@ export const profileService = {
       return this.updateProfile(profile);
     }
     return this.createProfile(profile);
+  },
+
+  /**
+   * Retrieves aggregated analytics counters for a profile.
+   * RLS policy restricts reading to profile owner or founder_admin.
+   */
+  async getProfileAnalytics(profileId: string): Promise<ProfileAnalyticsSummary> {
+    if (!supabase) return { taps: 0, whatsappClicks: 0, vcardDownloads: 0 };
+
+    const { data, error } = await supabase
+      .from('profile_analytics_summary')
+      .select('taps, whatsapp_clicks, vcard_downloads')
+      .eq('profile_id', profileId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[TAGTOP ProfileService] Analytics fetch error:', error.message);
+      throw error;
+    }
+
+    if (!data) {
+      return { taps: 0, whatsappClicks: 0, vcardDownloads: 0 };
+    }
+
+    const row = data as { taps: number; whatsapp_clicks: number; vcard_downloads: number };
+    return {
+      taps: Number(row.taps || 0),
+      whatsappClicks: Number(row.whatsapp_clicks || 0),
+      vcardDownloads: Number(row.vcard_downloads || 0),
+    };
   },
 };

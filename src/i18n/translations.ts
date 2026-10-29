@@ -263,6 +263,7 @@ export interface Translations {
     servicesTitle: string;
     documentsTitle: string;
     videosTitle: string;
+    socialsTitle: string;
     leadFormTitle: string;
     leadFormSubtitle: string;
     nameField: string;
@@ -457,6 +458,21 @@ export interface Translations {
     whatsappLabel: string;
     emailLabel: string;
     websiteLabel: string;
+    avatarUrlLabel: string;
+    avatarUrlPlaceholder: string;
+    logoUrlLabel: string;
+    logoUrlPlaceholder: string;
+    socialLinksTitle: string;
+    socialLinksSubtitle: string;
+    socialLinkedin: string;
+    socialInstagram: string;
+    socialFacebook: string;
+    socialTiktok: string;
+    socialTwitter: string;
+    socialYoutube: string;
+    urlInvalidError: string;
+    analyticsLoading: string;
+    analyticsEmpty: string;
     brandingNoticeTitle: string;
     brandingNoticeDesc: string;
     myCardsOrdersTitle: string;
@@ -963,6 +979,7 @@ export const translations: Record<Language, Translations> = {
       servicesTitle: 'Prestations proposées',
       documentsTitle: 'Catalogues & Documents PDF',
       videosTitle: 'Présentation vidéo',
+      socialsTitle: 'Réseaux sociaux & Profils',
       leadFormTitle: 'Laisser vos coordonnées',
       leadFormSubtitle: 'Partagez vos coordonnées directement avec nous pour une mise en relation rapide.',
       nameField: 'Votre nom complet',
@@ -1157,6 +1174,21 @@ export const translations: Record<Language, Translations> = {
       whatsappLabel: 'WhatsApp',
       emailLabel: 'Email professionnel',
       websiteLabel: 'Site Web',
+      avatarUrlLabel: 'Photo de profil (URL)',
+      avatarUrlPlaceholder: 'https://exemple.ma/photo.jpg',
+      logoUrlLabel: 'Logo d\'entreprise (URL)',
+      logoUrlPlaceholder: 'https://exemple.ma/logo.png',
+      socialLinksTitle: 'Réseaux sociaux & Liens professionnels',
+      socialLinksSubtitle: 'Ajoutez vos profils pour permettre à vos contacts de vous suivre en un clic.',
+      socialLinkedin: 'LinkedIn',
+      socialInstagram: 'Instagram',
+      socialFacebook: 'Facebook',
+      socialTiktok: 'TikTok',
+      socialTwitter: 'X (Twitter)',
+      socialYoutube: 'YouTube',
+      urlInvalidError: 'URL invalide. Le lien doit commencer par http:// ou https://',
+      analyticsLoading: 'Chargement des statistiques réelles...',
+      analyticsEmpty: 'Aucun événement enregistré pour ce profil pour le moment.',
       brandingNoticeTitle: 'Marquage digital TAGTOP :',
       brandingNoticeDesc: 'La suppression de la mention TAGTOP dans le pied de page du profil digital est une option d\'abonnement avancée distincte de la suppression physique sur la carte. Actuellement non configurée au lancement.',
       myCardsOrdersTitle: 'Mes Cartes & Commandes',
@@ -1661,6 +1693,7 @@ export const translations: Record<Language, Translations> = {
       servicesTitle: 'الخدمات المتاحة',
       documentsTitle: 'الكتالوجات والمستندات',
       videosTitle: 'عرض فيديو توضيحي',
+      socialsTitle: 'شبكات التواصل والملفات المهنية',
       leadFormTitle: 'شاركني بيانات تواصلك',
       leadFormSubtitle: 'أرسل بياناتك مباشرة لتسهيل التواصل والتعاون المهني.',
       nameField: 'الاسم الكامل',
@@ -1855,6 +1888,21 @@ export const translations: Record<Language, Translations> = {
       whatsappLabel: 'واتساب',
       emailLabel: 'البريد الإلكتروني المهني',
       websiteLabel: 'الموقع الإلكتروني',
+      avatarUrlLabel: 'رابط الصورة الشخصية (URL)',
+      avatarUrlPlaceholder: 'https://example.ma/photo.jpg',
+      logoUrlLabel: 'رابط شعار الشركة (URL)',
+      logoUrlPlaceholder: 'https://example.ma/logo.png',
+      socialLinksTitle: 'شبكات التواصل والروابط المهنية',
+      socialLinksSubtitle: 'أضف روابط حساباتك لتمكين جهات اتصالك من متابعتك بنقرة واحدة.',
+      socialLinkedin: 'لينكد إن',
+      socialInstagram: 'إنستغرام',
+      socialFacebook: 'فيسبوك',
+      socialTiktok: 'تيك توك',
+      socialTwitter: 'إكس (تويتر)',
+      socialYoutube: 'يوتيوب',
+      urlInvalidError: 'الرابط غير صالح. يجب أن يبدأ بـ http:// أو https://',
+      analyticsLoading: 'جاري تحميل الإحصائيات الفعلية...',
+      analyticsEmpty: 'لا توجد تفاعلات مسجلة لهذا الملف حتى الآن.',
       brandingNoticeTitle: 'شعار TAGTOP الرقمي :',
       brandingNoticeDesc: 'إزالة شعار TAGTOP من الملف الرقمي خيار متقدم منفصل عن إزالته من البطاقة المادية، وهو غير مفعل حالياً عند الإطلاق.',
       myCardsOrdersTitle: 'بطاقاتي وطلباتي',
@@ -2359,6 +2407,7 @@ export const translations: Record<Language, Translations> = {
       servicesTitle: 'Featured Offerings',
       documentsTitle: 'Documents & Catalogs',
       videosTitle: 'Video Introduction',
+      socialsTitle: 'Social & Professional Links',
       leadFormTitle: 'Share Your Details',
       leadFormSubtitle: 'Exchange your details directly with us for future collaboration.',
       nameField: 'Full Name',
@@ -2553,6 +2602,21 @@ export const translations: Record<Language, Translations> = {
       whatsappLabel: 'WhatsApp',
       emailLabel: 'Work Email',
       websiteLabel: 'Website',
+      avatarUrlLabel: 'Profile Photo URL',
+      avatarUrlPlaceholder: 'https://example.com/photo.jpg',
+      logoUrlLabel: 'Company Logo URL',
+      logoUrlPlaceholder: 'https://example.com/logo.png',
+      socialLinksTitle: 'Social Media & Professional Profiles',
+      socialLinksSubtitle: 'Add or update your social profiles so contacts can connect with one tap.',
+      socialLinkedin: 'LinkedIn',
+      socialInstagram: 'Instagram',
+      socialFacebook: 'Facebook',
+      socialTiktok: 'TikTok',
+      socialTwitter: 'X (Twitter)',
+      socialYoutube: 'YouTube',
+      urlInvalidError: 'Invalid URL. Link must start with http:// or https://',
+      analyticsLoading: 'Loading real-time analytics...',
+      analyticsEmpty: 'No interaction events recorded for this profile yet.',
       brandingNoticeTitle: 'TAGTOP Digital Branding:',
       brandingNoticeDesc: 'Removing TAGTOP branding from digital profiles is an advanced plan tier distinct from physical unbranded cards. Not configured at launch.',
       myCardsOrdersTitle: 'My Cards & Orders',

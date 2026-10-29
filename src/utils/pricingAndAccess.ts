@@ -256,3 +256,31 @@ export function downloadVCard(profile: BusinessProfile): void {
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Validates that an external URL uses a safe protocol (http or https).
+ */
+export function isValidExternalUrl(urlStr: string): boolean {
+  if (!urlStr || !urlStr.trim()) return false;
+  try {
+    const parsed = new URL(urlStr.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sanitizes and normalizes an external URL string, prefixing https:// if omitted.
+ * Returns empty string if invalid.
+ */
+export function sanitizeExternalUrl(urlStr: string): string {
+  const trimmed = (urlStr || '').trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) {
+    return isValidExternalUrl(trimmed) ? trimmed : '';
+  }
+  const withHttps = `https://${trimmed}`;
+  return isValidExternalUrl(withHttps) ? withHttps : '';
+}
+
