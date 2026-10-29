@@ -122,6 +122,24 @@ async function invokeRpcOrThrow<T = unknown>(
   return data as T;
 }
 
+function computeExpectedExpiry(baselineExpiryStr: string | null | undefined, daysToAdd: number): string {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [ty, tm, td] = todayIso.split('-').map(Number);
+  const todayUtcMs = Date.UTC(ty, tm - 1, td);
+
+  let baseUtcMs = todayUtcMs;
+  if (baselineExpiryStr) {
+    const [by, bm, bd] = baselineExpiryStr.split('-').map(Number);
+    const parsedBaseUtcMs = Date.UTC(by, bm - 1, bd);
+    if (parsedBaseUtcMs > todayUtcMs) {
+      baseUtcMs = parsedBaseUtcMs;
+    }
+  }
+
+  const targetUtcMs = baseUtcMs + daysToAdd * 86400000;
+  return new Date(targetUtcMs).toISOString().slice(0, 10);
+}
+
 // ─── Cleanup registry ───────────────────────────────────────────────────────
 // Tracks all test-generated rows and auth users for teardown, even on failure.
 interface CleanupRecord {
@@ -1282,17 +1300,17 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
             '4.4f UUID transfer IDs are distinct and collision-resistant under concurrent creation',
             insertedIds.join(', ')
           );
-        } else if (uniqueIds.size === 3) {
-          pass(
-            'Concurrency Safety',
-            '4.4f 3 transfers created simultaneously with distinct IDs (pre-migration fallback)',
-            insertedIds.join(', ')
-          );
-        } else {
+        } else if (uniqueIds.size !== 3) {
           fail(
             'Concurrency Safety',
             '4.4f Primary key collision detected under simultaneous transfer creation!',
             `Duplicate IDs among: ${insertedIds.join(', ')}`
+          );
+        } else {
+          fail(
+            'Concurrency Safety',
+            '4.4f Generated IDs do not match required UUID format (^trn-[0-9a-f-]{36}$)',
+            insertedIds.join(', ')
           );
         }
       }
@@ -1320,13 +1338,15 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       } else {
         cleanupQueue.push({ table: 'bank_transfers', id: xferRace1.id });
 
-        // Read pre-expiry date
+        // Read pre-expiry baseline date
         const { data: profBefore } = await adminClient
           .from('business_profiles')
           .select('expiry_date')
           .eq('id', profileAId)
           .single();
         const preExpiryDate = profBefore?.expiry_date as string;
+        const expectedSingleExpiry = computeExpectedExpiry(preExpiryDate, 180);
+        const expectedDoubleExpiry = computeExpectedExpiry(preExpiryDate, 360);
 
         // Fire two concurrent approvals via separate founder sessions
         const approvalResults = await Promise.allSettled([
@@ -1343,38 +1363,63 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
         const fulfilled = approvalResults.filter((r) => r.status === 'fulfilled');
         const rejected = approvalResults.filter((r) => r.status === 'rejected');
 
-        // Verify post-expiry date
+        // Independently verify transfer status in PostgreSQL
+        const { data: xferCheck } = await adminClient
+          .from('bank_transfers')
+          .select('status')
+          .eq('id', xferRace1.id)
+          .single();
+
+        // Independently verify post-expiry date in PostgreSQL
         const { data: profAfter } = await adminClient
           .from('business_profiles')
           .select('expiry_date')
           .eq('id', profileAId)
           .single();
-
         const postExpiryDate = profAfter?.expiry_date as string;
 
-        if (fulfilled.length === 1 && rejected.length === 1) {
-          const rejectedErr = (rejected[0] as PromiseRejectedResult).reason;
-          const errMsg = rejectedErr instanceof Error ? rejectedErr.message : String(rejectedErr);
-          const expectedConflict = /already been approved|conflict|lock not available/i.test(errMsg);
-          if (expectedConflict) {
-            pass(
-              'Concurrency Safety',
-              '4.4g Race condition prevented: exactly 1 approval succeeded, 1 rejected with conflict error',
-              `Error: ${errMsg.slice(0, 80)} | Expiry: ${preExpiryDate} → ${postExpiryDate}`
-            );
-          } else {
-            fail(
-              'Concurrency Safety',
-              '4.4g Concurrent approval rejected with unexpected error',
-              errMsg
-            );
-          }
-        } else {
+        if (fulfilled.length !== 1 || rejected.length !== 1) {
           fail(
             'Concurrency Safety',
-            '4.4g Race condition failure: double approval or unexpected result',
+            '4.4g Race condition failure: expected exactly 1 fulfilled and 1 rejected approval',
             `Fulfilled: ${fulfilled.length}, Rejected: ${rejected.length}`
           );
+        } else {
+          const rejectedErr = (rejected[0] as PromiseRejectedResult).reason;
+          const errMsg = rejectedErr instanceof Error ? rejectedErr.message : String(rejectedErr);
+          const isExpectedConflict = /already been approved|conflict|lock not available/i.test(errMsg);
+
+          if (!isExpectedConflict) {
+            fail(
+              'Concurrency Safety',
+              '4.4g Rejected approval threw unexpected error message',
+              errMsg
+            );
+          } else if (xferCheck?.status !== 'approved') {
+            fail(
+              'Concurrency Safety',
+              '4.4g Bank transfer status is not approved in database',
+              `status: ${xferCheck?.status}`
+            );
+          } else if (postExpiryDate === expectedDoubleExpiry) {
+            fail(
+              'Concurrency Safety',
+              '4.4g DOUBLE EXTENSION DETECTED: Profile expiry extended twice (+360 days instead of +180)',
+              `postExpiry: ${postExpiryDate}, expected single: ${expectedSingleExpiry}`
+            );
+          } else if (postExpiryDate !== expectedSingleExpiry) {
+            fail(
+              'Concurrency Safety',
+              '4.4g Profile expiry date mismatch: not extended by exactly 180 days from baseline',
+              `baseline: ${preExpiryDate}, actual: ${postExpiryDate}, expected: ${expectedSingleExpiry}`
+            );
+          } else {
+            pass(
+              'Concurrency Safety',
+              '4.4g Race condition prevented: exactly 1 approval succeeded, status=approved, expiry extended by exactly 180 days',
+              `baseline: ${preExpiryDate} → new: ${postExpiryDate}`
+            );
+          }
         }
       }
     }
@@ -1411,13 +1456,14 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
         cleanupQueue.push({ table: 'bank_transfers', id: id1 });
         cleanupQueue.push({ table: 'bank_transfers', id: id2 });
 
-        // Record pre-expiry
+        // Record pre-expiry baseline date
         const { data: profBefore } = await adminClient
           .from('business_profiles')
           .select('expiry_date')
           .eq('id', profileAId)
           .single();
-        const preExpiryDate = new Date(profBefore?.expiry_date as string);
+        const preExpiryDate = profBefore?.expiry_date as string;
+        const expectedCumulativeExpiry = computeExpectedExpiry(preExpiryDate, 545);
 
         // Concurrently approve both transfers via separate founder sessions
         const diffResults = await Promise.allSettled([
@@ -1432,32 +1478,50 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
         ]);
 
         const fulfilled = diffResults.filter((r) => r.status === 'fulfilled');
+        const rejected = diffResults.filter((r) => r.status === 'rejected');
+
+        // Independently verify status of both transfers in PostgreSQL
+        const { data: transfersCheck } = await adminClient
+          .from('bank_transfers')
+          .select('id, status')
+          .in('id', [id1, id2]);
+
+        const bothTransfersApproved =
+          Array.isArray(transfersCheck) &&
+          transfersCheck.length === 2 &&
+          transfersCheck.every((t) => t.status === 'approved');
+
+        // Independently verify final profile expiry date
         const { data: profAfter } = await adminClient
           .from('business_profiles')
           .select('expiry_date')
           .eq('id', profileAId)
           .single();
+        const postExpiryDate = profAfter?.expiry_date as string;
 
-        const postExpiryDate = new Date(profAfter?.expiry_date as string);
-        const diffDays = Math.round((postExpiryDate.getTime() - preExpiryDate.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (fulfilled.length === 2 && diffDays >= 540 && diffDays <= 550) {
-          pass(
-            'Concurrency Safety',
-            '4.4h Concurrent approvals for different transfers serialized cleanly (+545 days cumulative)',
-            `Diff: +${diffDays} days (180+365)`
-          );
-        } else if (fulfilled.length === 2) {
-          pass(
-            'Concurrency Safety',
-            '4.4h Both concurrent approvals fulfilled successfully',
-            `Diff: +${diffDays} days`
-          );
-        } else {
+        if (fulfilled.length !== 2 || rejected.length !== 0) {
           fail(
             'Concurrency Safety',
-            '4.4h Concurrent approvals failed or lost update occurred',
-            `Fulfilled: ${fulfilled.length}, Diff days: ${diffDays}`
+            '4.4h Concurrent approvals failed: expected both RPCs to fulfill',
+            `Fulfilled: ${fulfilled.length}, Rejected: ${rejected.length}`
+          );
+        } else if (!bothTransfersApproved) {
+          fail(
+            'Concurrency Safety',
+            '4.4h Not all transfers reached approved status in database',
+            JSON.stringify(transfersCheck)
+          );
+        } else if (postExpiryDate !== expectedCumulativeExpiry) {
+          fail(
+            'Concurrency Safety',
+            '4.4h Lost update or incorrect expiry: final date is not exactly +545 days from baseline',
+            `baseline: ${preExpiryDate}, actual: ${postExpiryDate}, expected: ${expectedCumulativeExpiry}`
+          );
+        } else {
+          pass(
+            'Concurrency Safety',
+            '4.4h Both transfers approved and profile expiry serialized cleanly to exactly +545 days (180+365)',
+            `baseline: ${preExpiryDate} → new: ${postExpiryDate}`
           );
         }
       }
@@ -1485,7 +1549,16 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       } else {
         cleanupQueue.push({ table: 'bank_transfers', id: xferRace3.id });
 
-        const raceResults = await Promise.allSettled([
+        // Record pre-expiry date before race
+        const { data: profBefore } = await adminClient
+          .from('business_profiles')
+          .select('expiry_date')
+          .eq('id', profileAId)
+          .single();
+        const preExpiryDate = profBefore?.expiry_date as string;
+        const expectedApprovalExpiry = computeExpectedExpiry(preExpiryDate, 180);
+
+        const [approvePromise, rejectPromise] = [
           invokeRpcOrThrow(clientAdmin, 'founder_approve_bank_transfer', {
             p_transfer_id: xferRace3.id,
             p_founder_notes: 'Simultaneous approval attempt',
@@ -1494,10 +1567,14 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
             p_transfer_id: xferRace3.id,
             p_reason: 'Simultaneous rejection attempt',
           }),
-        ]);
+        ];
 
-        const fulfilled = raceResults.filter((r) => r.status === 'fulfilled');
-        const rejected = raceResults.filter((r) => r.status === 'rejected');
+        const [approveResult, rejectResult] = await Promise.allSettled([approvePromise, rejectPromise]);
+
+        const fulfilledCount =
+          (approveResult.status === 'fulfilled' ? 1 : 0) + (rejectResult.status === 'fulfilled' ? 1 : 0);
+        const rejectedCount =
+          (approveResult.status === 'rejected' ? 1 : 0) + (rejectResult.status === 'rejected' ? 1 : 0);
 
         const { data: xferFinal } = await adminClient
           .from('bank_transfers')
@@ -1505,20 +1582,61 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
           .eq('id', xferRace3.id)
           .single();
 
-        const isCleanTerminal = xferFinal?.status === 'approved' || xferFinal?.status === 'rejected';
+        const { data: profAfter } = await adminClient
+          .from('business_profiles')
+          .select('expiry_date')
+          .eq('id', profileAId)
+          .single();
+        const postExpiryDate = profAfter?.expiry_date as string;
 
-        if (fulfilled.length === 1 && rejected.length === 1 && isCleanTerminal) {
-          pass(
-            'Concurrency Safety',
-            '4.4i Race between approval and rejection serialized to clean terminal state',
-            `Winner: ${xferFinal?.status}`
-          );
-        } else {
+        if (fulfilledCount !== 1 || rejectedCount !== 1) {
           fail(
             'Concurrency Safety',
-            '4.4i Race between approval and rejection resulted in corrupt or inconsistent state',
-            `Fulfilled: ${fulfilled.length}, Rejected: ${rejected.length}, DB status: ${xferFinal?.status}`
+            '4.4i Race between approval and rejection failed: expected exactly 1 fulfilled and 1 rejected',
+            `approve: ${approveResult.status}, reject: ${rejectResult.status}`
           );
+        } else if (approveResult.status === 'fulfilled') {
+          // Approval won
+          if (xferFinal?.status !== 'approved') {
+            fail(
+              'Concurrency Safety',
+              '4.4i Approval operation won but database transfer status is not "approved"',
+              `status: ${xferFinal?.status}`
+            );
+          } else if (postExpiryDate !== expectedApprovalExpiry) {
+            fail(
+              'Concurrency Safety',
+              '4.4i Approval operation won but profile expiry was not extended by exactly 180 days',
+              `baseline: ${preExpiryDate}, actual: ${postExpiryDate}, expected: ${expectedApprovalExpiry}`
+            );
+          } else {
+            pass(
+              'Concurrency Safety',
+              '4.4i Approval won the race: transfer status=approved and profile expiry extended by exactly 180 days',
+              `status: ${xferFinal.status}, expiry: ${preExpiryDate} → ${postExpiryDate}`
+            );
+          }
+        } else {
+          // Rejection won
+          if (xferFinal?.status !== 'rejected') {
+            fail(
+              'Concurrency Safety',
+              '4.4i Rejection operation won but database transfer status is not "rejected"',
+              `status: ${xferFinal?.status}`
+            );
+          } else if (postExpiryDate !== preExpiryDate) {
+            fail(
+              'Concurrency Safety',
+              '4.4i Rejection operation won but profile expiry changed unexpectedly',
+              `pre: ${preExpiryDate}, post: ${postExpiryDate}`
+            );
+          } else {
+            pass(
+              'Concurrency Safety',
+              '4.4i Rejection won the race: transfer status=rejected and profile expiry unchanged',
+              `status: ${xferFinal.status}, expiry kept at ${postExpiryDate}`
+            );
+          }
         }
       }
     }
