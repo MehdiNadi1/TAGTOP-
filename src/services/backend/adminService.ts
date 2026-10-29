@@ -25,29 +25,13 @@ import {
 } from '../../types/database.types';
 import { mapRowToOrder } from './orderService';
 import { mapRowToBusinessProfile } from './profileService';
+import { mapRowToTransfer } from './transferService';
 import { initialSettings } from '../../data/mockData';
 
 type ProfileRow = Database['public']['Tables']['business_profiles']['Row'];
 type OrderRow = Database['public']['Tables']['orders']['Row'];
 type TransferRow = Database['public']['Tables']['bank_transfers']['Row'];
 type CardRow = Database['public']['Tables']['nfc_cards']['Row'];
-
-function mapRowToTransfer(row: TransferRow): BankTransferRenewal {
-  return {
-    id: row.id,
-    profileId: row.profile_id,
-    profileName: row.profile_name || '',
-    customerName: row.customer_name,
-    customerPhone: row.customer_phone,
-    amountMAD: Number(row.amount_mad),
-    periodDescription: row.period_description || (Number(row.amount_mad) === 150 ? 'Renouvellement 6 mois' : 'Renouvellement 1 an'),
-    receiptNumber: row.receipt_number,
-    submittedAt: row.submitted_at,
-    status: row.status as TransferStatus,
-    founderNotes: row.founder_notes || undefined,
-    verifiedAt: row.verified_at || undefined,
-  };
-}
 
 export const adminService = {
   /**

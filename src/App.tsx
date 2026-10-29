@@ -123,12 +123,14 @@ export default function App() {
   const loadCustomerData = async (userId: string, email: string) => {
     setIsCustomerDataLoading(true);
     try {
-      const [userProfiles, userOrders] = await Promise.all([
+      const [userProfiles, userOrders, userTransfers] = await Promise.all([
         dataAdapter.getCustomerProfiles(userId, currentLanguage),
         dataAdapter.getCustomerOrders(userId, email),
+        dataAdapter.getCustomerTransfers(userId),
       ]);
       setProfiles(userProfiles);
       setOrders(userOrders);
+      setTransfers(userTransfers);
 
       if (userProfiles.length > 0) {
         const userLeads = await dataAdapter.getProfileLeads(userProfiles[0].id);
@@ -235,6 +237,7 @@ export default function App() {
           setProfiles([]);
           setOrders([]);
           setLeads([]);
+          setTransfers([]);
         }
       }
       setIsAuthLoading(false);
@@ -374,6 +377,7 @@ export default function App() {
       setProfiles([]);
       setOrders([]);
       setLeads([]);
+      setTransfers([]);
     }
     setCurrentView('marketing');
   };
@@ -408,9 +412,16 @@ export default function App() {
     }).catch(console.error);
   };
 
-  const handleSubmitRenewalTransfer = (transfer: BankTransferRenewal) => {
-    const updated = addStoredTransfer(transfer);
-    setTransfers(updated);
+  const handleSubmitRenewalTransfer = async (transfer: BankTransferRenewal): Promise<BankTransferRenewal> => {
+    try {
+      const saved = await dataAdapter.submitRenewalTransfer(transfer, currentUser?.id);
+      setTransfers((prev) => [saved, ...prev.filter((t) => t.id !== saved.id)]);
+      setFounderTransfers((prev) => [saved, ...prev.filter((t) => t.id !== saved.id)]);
+      return saved;
+    } catch (err) {
+      console.error('[TAGTOP App] Renewal transfer submission failed:', err);
+      throw err;
+    }
   };
 
   const handleFounderApproveTransfer = async (transferId: string, founderNotes: string) => {
@@ -422,10 +433,24 @@ export default function App() {
           : t
       )
     );
+    setTransfers((prev) =>
+      prev.map((t) =>
+        t.id === transferId
+          ? { ...t, status: 'approved' as const, founderNotes, verifiedAt: new Date().toISOString() }
+          : t
+      )
+    );
     if (result.newExpiryDate) {
-      const target = founderTransfers.find((t) => t.id === transferId);
+      const target = founderTransfers.find((t) => t.id === transferId) || transfers.find((t) => t.id === transferId);
       if (target) {
         setFounderProfiles((prev) =>
+          prev.map((p) =>
+            p.id === target.profileId
+              ? { ...p, accessState: 'active' as const, expiryDate: result.newExpiryDate! }
+              : p
+          )
+        );
+        setProfiles((prev) =>
           prev.map((p) =>
             p.id === target.profileId
               ? { ...p, accessState: 'active' as const, expiryDate: result.newExpiryDate! }
@@ -439,6 +464,13 @@ export default function App() {
   const handleFounderRejectTransfer = async (transferId: string, reason: string) => {
     await dataAdapter.founderRejectTransfer(transferId, reason);
     setFounderTransfers((prev) =>
+      prev.map((t) =>
+        t.id === transferId
+          ? { ...t, status: 'rejected' as const, founderNotes: reason, verifiedAt: new Date().toISOString() }
+          : t
+      )
+    );
+    setTransfers((prev) =>
       prev.map((t) =>
         t.id === transferId
           ? { ...t, status: 'rejected' as const, founderNotes: reason, verifiedAt: new Date().toISOString() }

@@ -659,7 +659,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                           <div>
                             <p className="text-neutral-400">{t.founderDashboard.amountReceived}</p>
                             <p className="font-bold text-white text-sm">{trn.amountMAD} {t.common.currency}</p>
-                            <p className="text-[11px] text-neutral-400">{trn.amountMAD === 99 ? t.customerDashboard.renewal6MonthsLabel : t.customerDashboard.renewalAnnualLabel}</p>
+                            <p className="text-[11px] text-neutral-400">{trn.amountMAD === 150 ? t.customerDashboard.renewal6MonthsLabel : t.customerDashboard.renewalAnnualLabel}</p>
                           </div>
                           <div>
                             <p className="text-neutral-400">{t.founderDashboard.concernedProfile}</p>

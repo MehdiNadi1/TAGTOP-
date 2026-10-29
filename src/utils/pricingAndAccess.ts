@@ -79,6 +79,18 @@ export function calculateCardPrice(
 }
 
 /**
+ * Calculates renewal extension days strictly following business rules:
+ * - 150 MAD -> 180 days (6 months)
+ * - 200 MAD -> 365 days (1 year)
+ * Rejects invalid amounts.
+ */
+export function calculateRenewalExtensionDays(amountMAD: number): number {
+  if (amountMAD === RENEWAL_SIX_MONTHS_MAD) return 180;
+  if (amountMAD === RENEWAL_ANNUAL_MAD) return 365;
+  throw new Error(`Invalid renewal amount: ${amountMAD} MAD`);
+}
+
+/**
  * Access resolution for public visitors or NFC card taps.
  */
 export interface PublicAccessCheckResult {

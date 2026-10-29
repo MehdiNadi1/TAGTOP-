@@ -26,6 +26,7 @@ import { profileService } from './backend/profileService';
 import { orderService } from './backend/orderService';
 import { leadService, cardService } from './backend/leadService';
 import { adminService } from './backend/adminService';
+import { transferService } from './backend/transferService';
 import {
   TagtopOrderStatus,
   TagtopPaymentStatus,
@@ -36,6 +37,7 @@ import {
   updateStoredProfile,
   getStoredRegistry,
   getStoredTransfers,
+  addStoredTransfer,
   saveTransfers,
   getStoredSettings,
   saveSettings,
@@ -273,6 +275,43 @@ export const dataAdapter = {
     saveOrders(updated);
   },
 
+  /**
+   * Submits a customer bank transfer renewal.
+   * In Supabase mode, executes on server with RLS and trigger enforcement.
+   */
+  async submitRenewalTransfer(
+    transfer: BankTransferRenewal,
+    customerId?: string
+  ): Promise<BankTransferRenewal> {
+    if (isSupabaseConfigured()) {
+      return await transferService.createRenewalTransfer(transfer, customerId);
+    }
+
+    // Explicit Demo Mode Fallback
+    const persisted: BankTransferRenewal = {
+      ...transfer,
+      id: transfer.id && !transfer.id.startsWith('temp-') && !transfer.id.startsWith('trn-draft-')
+        ? transfer.id
+        : `trn-${Date.now().toString(36)}`,
+      status: 'pending',
+      submittedAt: new Date().toISOString(),
+    };
+    addStoredTransfer(persisted);
+    return persisted;
+  },
+
+  /**
+   * Retrieves all bank transfer renewals for an authenticated customer.
+   */
+  async getCustomerTransfers(customerId?: string): Promise<BankTransferRenewal[]> {
+    if (isSupabaseConfigured()) {
+      return await transferService.getCustomerTransfers(customerId);
+    }
+
+    // Explicit Demo Mode Fallback
+    return getStoredTransfers();
+  },
+
   // ===========================================================================
   // FOUNDER ADMIN OPERATIONS
   // ===========================================================================
@@ -362,6 +401,7 @@ export const dataAdapter = {
     const transfers = getStoredTransfers();
     const target = transfers.find((t) => t.id === transferId);
     if (!target) throw new Error('Transfer not found');
+    if (target.status === 'approved') throw new Error(`Transfer ${transferId} has already been approved`);
 
     const nextTransfers = transfers.map((t) =>
       t.id === transferId

@@ -1000,6 +1000,124 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       }
     }
 
+    // 4.4b: Repeated approval of the same transfer is prevented
+    {
+      const { error: repeatErr } = await clientAdmin.rpc('founder_approve_bank_transfer', {
+        p_transfer_id: transferAId,
+        p_founder_notes: 'Duplicate approval attempt',
+      });
+      if (repeatErr && /already been approved/i.test(repeatErr.message)) {
+        pass('Founder Admin', '4.4b Repeated approval prevented (already been approved)', repeatErr.message.slice(0, 80));
+      } else if (repeatErr) {
+        pass('Founder Admin', '4.4b Repeated approval rejected with error', repeatErr.message.slice(0, 80));
+      } else {
+        fail('Founder Admin', '4.4b Repeated approval succeeded unexpectedly! Double extension vulnerability');
+      }
+    }
+
+    // 4.4c: Database CHECK constraint enforces 150/200 MAD pricing (rejects 99 MAD and 199 MAD)
+    {
+      const { error: checkErr99 } = await clientA
+        .from('bank_transfers')
+        .insert({
+          profile_id: profileAId,
+          profile_name: 'Studio Test A',
+          customer_name: 'Customer A',
+          customer_phone: '+212600100001',
+          amount_mad: 99.00,
+          period_description: 'Obsolete 99 MAD test',
+          receipt_number: `REC-A-99-${stamp}`,
+        });
+
+      if (checkErr99) {
+        pass('Subscription Renewal', '4.4c Database rejects invalid 99 MAD renewal (CHECK constraint)', checkErr99.message.slice(0, 80));
+      } else {
+        fail('Subscription Renewal', '4.4c Database accepted invalid 99 MAD renewal!');
+      }
+
+      const { error: checkErr199 } = await clientA
+        .from('bank_transfers')
+        .insert({
+          profile_id: profileAId,
+          profile_name: 'Studio Test A',
+          customer_name: 'Customer A',
+          customer_phone: '+212600100001',
+          amount_mad: 199.00,
+          period_description: 'Obsolete 199 MAD test',
+          receipt_number: `REC-A-199-${stamp}`,
+        });
+
+      if (checkErr199) {
+        pass('Subscription Renewal', '4.4c Database rejects invalid 199 MAD renewal (CHECK constraint)', checkErr199.message.slice(0, 80));
+      } else {
+        fail('Subscription Renewal', '4.4c Database accepted invalid 199 MAD renewal!');
+      }
+    }
+
+    // 4.4d: Customer A submits 200 MAD annual renewal and Founder rejects with notes
+    {
+      const { data: xfer200Data, error: xfer200Err } = await clientA
+        .from('bank_transfers')
+        .insert({
+          profile_id: profileAId,
+          profile_name: 'Studio Test A',
+          customer_name: 'Customer A',
+          customer_phone: '+212600100001',
+          amount_mad: 200.00,
+          period_description: '1 an',
+          receipt_number: `REC-A-200-${stamp}`,
+        })
+        .select('id')
+        .single();
+
+      if (xfer200Err || !xfer200Data) {
+        fail('Subscription Renewal', '4.4d Customer A 200 MAD renewal submission failed', xfer200Err?.message || 'no data');
+      } else {
+        const transfer200Id = xfer200Data.id;
+        cleanupQueue.push({ table: 'bank_transfers', id: transfer200Id });
+        pass('Subscription Renewal', '4.4d Customer A successfully submitted 200 MAD renewal (status=pending)', `id=${transfer200Id}`);
+
+        // Admin rejects via RPC
+        const { error: rejectErr } = await clientAdmin.rpc('founder_reject_bank_transfer', {
+          p_transfer_id: transfer200Id,
+          p_reason: 'Montant non reçu sur le compte bancaire CIH',
+        });
+
+        if (rejectErr) {
+          fail('Founder Admin', '4.4d founder_reject_bank_transfer RPC failed', rejectErr.message);
+        } else {
+          const { data: xferRejected } = await adminClient
+            .from('bank_transfers')
+            .select('status, founder_notes, verified_at')
+            .eq('id', transfer200Id)
+            .single();
+
+          if (xferRejected?.status === 'rejected' && xferRejected?.founder_notes?.includes('Montant non reçu')) {
+            pass('Founder Admin', '4.4d Bank transfer rejected: status=rejected with recorded reason', xferRejected.founder_notes);
+          } else {
+            fail('Founder Admin', '4.4d Bank transfer rejection state mismatch', JSON.stringify(xferRejected));
+          }
+        }
+      }
+    }
+
+    // 4.4e: Cross-account renewal isolation: Customer B CANNOT read Customer A's bank transfers
+    {
+      const { data: bTransfers, error: bTransfersErr } = await clientB
+        .from('bank_transfers')
+        .select('id, amount_mad, receipt_number')
+        .eq('profile_id', profileAId);
+
+      const isolated = !bTransfersErr && Array.isArray(bTransfers) && bTransfers.length === 0;
+      if (isolated) {
+        pass('Customer B', '4.4e Customer B cannot view Customer A bank transfers (0 rows — RLS)', '');
+      } else if (bTransfersErr) {
+        pass('Customer B', '4.4e Customer B query on Customer A bank transfers denied by RLS', bTransfersErr.message.slice(0, 80));
+      } else {
+        fail('Customer B', '4.4e Customer B can see Customer A transfers — isolation breach!', `${bTransfers?.length} rows exposed`);
+      }
+    }
+
     // 4.5: is_founder_admin RPC returns true for Founder Admin
     {
       const { data: isAdmin, error } = await clientAdmin.rpc('is_founder_admin');

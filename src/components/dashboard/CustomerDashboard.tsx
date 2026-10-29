@@ -45,7 +45,7 @@ interface CustomerDashboardProps {
   onProfileCreated?: (created: BusinessProfile) => void;
   onApproveProof: (orderId: string) => void;
   onRequestProofChange: (orderId: string, reason: string) => void;
-  onSubmitRenewalTransfer: (transfer: BankTransferRenewal) => void;
+  onSubmitRenewalTransfer: (transfer: BankTransferRenewal) => Promise<BankTransferRenewal>;
   onViewChange: (view: AppView) => void;
   onOrderNewCard: () => void;
   onSignOut?: () => void;
@@ -56,6 +56,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   profiles,
   orders,
   leads,
+  transfers = [],
   settings,
   currentUser,
   onUpdateProfile,
@@ -108,6 +109,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [renewalReceipt, setRenewalReceipt] = useState('');
   const [renewalPeriod, setRenewalPeriod] = useState<'6months' | 'annual'>('6months');
   const [renewalSubmitted, setRenewalSubmitted] = useState(false);
+  const [isSubmittingRenewal, setIsSubmittingRenewal] = useState(false);
+  const [renewalError, setRenewalError] = useState<string | null>(null);
+  const [persistedRenewal, setPersistedRenewal] = useState<BankTransferRenewal | null>(null);
 
   // Leads search
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
@@ -143,30 +147,51 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     }
   };
 
-  const handleClaimTransfer = (e: React.FormEvent) => {
+  const handleClaimTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!renewalReceipt || !currentProfile) return;
+    if (isSubmittingRenewal) return;
+    if (!renewalReceipt.trim() || !currentProfile) return;
+
+    setRenewalError(null);
+    setIsSubmittingRenewal(true);
+
+    const renewalAmount = renewalPeriod === '6months' ? (settings?.renewalSixMonthsMAD || 150) : (settings?.renewalAnnualMAD || 200);
+    const periodDesc =
+      renewalPeriod === '6months'
+        ? t.customerDashboard.renewal6MonthsLabel
+        : t.customerDashboard.renewalAnnualLabel;
 
     const newTransfer: BankTransferRenewal = {
-      id: `trn-${Date.now()}`,
+      id: '',
       profileId: currentProfile.id,
       profileName: currentProfile.displayName,
-      customerName: currentProfile.ownerName,
-      customerPhone: currentProfile.phone,
-      amountMAD: renewalPeriod === '6months' ? 99 : 199,
-      periodDescription:
-        renewalPeriod === '6months'
-          ? t.customerDashboard.renewal6MonthsLabel
-          : t.customerDashboard.renewalAnnualLabel,
-      receiptNumber: renewalReceipt,
+      customerName: currentProfile.ownerName || currentUser?.fullName || 'Client TAGTOP',
+      customerPhone: currentProfile.phone || currentUser?.phone || '',
+      amountMAD: renewalAmount,
+      periodDescription: periodDesc,
+      receiptNumber: renewalReceipt.trim(),
       submittedAt: new Date().toISOString(),
       status: 'pending',
-      founderNotes: t.customerDashboard.pendingManualVerification,
     };
 
-    onSubmitRenewalTransfer(newTransfer);
-    setRenewalSubmitted(true);
-    setRenewalReceipt('');
+    try {
+      const saved = await onSubmitRenewalTransfer(newTransfer);
+      setPersistedRenewal(saved || newTransfer);
+      setRenewalSubmitted(true);
+      setRenewalReceipt('');
+    } catch (err: any) {
+      console.error('[TAGTOP CustomerDashboard] Renewal claim error:', err);
+      const msg = err?.message || (
+        currentLanguage === 'ar'
+          ? 'حدث خطأ أثناء تسجيل طلب التجديد. يرجى المحاولة مرة أخرى.'
+          : currentLanguage === 'en'
+          ? 'Failed to submit renewal transfer. Please try again.'
+          : 'Échec de l\'enregistrement du virement. Veuillez réessayer.'
+      );
+      setRenewalError(msg);
+    } finally {
+      setIsSubmittingRenewal(false);
+    }
   };
 
   const filteredLeads = leads.filter(
@@ -934,12 +959,55 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </p>
                 </div>
 
-                {renewalSubmitted && (
-                  <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>
-                      {t.customerDashboard.renewalSubmittedToast}
-                    </span>
+                {renewalSubmitted && persistedRenewal && (
+                  <div className="p-5 bg-emerald-50 rounded-2xl border border-emerald-200 text-xs text-emerald-950 space-y-3">
+                    <div className="flex items-center gap-2 font-bold text-sm text-emerald-800">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span>{t.customerDashboard.renewalSubmittedToast}</span>
+                    </div>
+                    <div className="bg-white/90 p-3.5 rounded-xl border border-emerald-200/70 space-y-2 text-xs text-slate-700">
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">ID Déclaration :</span>
+                        <span className="font-mono font-bold text-black">{persistedRenewal.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Montant déclaré :</span>
+                        <span className="font-bold text-black">{persistedRenewal.amountMAD} {t.common.currency} ({persistedRenewal.periodDescription})</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Référence virement :</span>
+                        <span className="font-mono font-semibold text-black">{persistedRenewal.receiptNumber}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-500">Statut :</span>
+                        <span className="font-bold text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-md text-[11px]">
+                          {t.customerDashboard.pendingManualVerification}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      {currentLanguage === 'ar'
+                        ? 'ملاحظة: تسجيل رقم الوصل لا يعتبر تأكيداً لاستلام الأموال. سيتم تفعيل التمديد فور مطابقة التحويل مع الكشف البنكي من قبل المؤسس.'
+                        : currentLanguage === 'en'
+                        ? 'Note: Entering a receipt reference does not constitute proof of payment received. The renewal extension is activated once the founder reconciles with the bank statement.'
+                        : 'Note : La saisie d\'une référence de reçu ne constitue pas une preuve de paiement reçu. Le renouvellement est activé après vérification effective du relevé bancaire par le fondateur.'}
+                    </p>
+                  </div>
+                )}
+
+                {renewalError && (
+                  <div className="p-4 bg-red-50 rounded-xl border border-red-200 text-xs text-red-800 font-semibold flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                      <span>{renewalError}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setRenewalError(null)}
+                      className="text-red-500 hover:text-red-700 font-bold ml-2 cursor-pointer"
+                    >
+                      ✕
+                    </button>
                   </div>
                 )}
 
@@ -967,6 +1035,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       <select
                         value={renewalPeriod}
                         onChange={(e) => setRenewalPeriod(e.target.value as any)}
+                        disabled={isSubmittingRenewal}
                         className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs text-black"
                       >
                         <option value="6months">{t.customerDashboard.option6Months}</option>
@@ -981,6 +1050,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       <input
                         type="text"
                         required
+                        disabled={isSubmittingRenewal}
                         placeholder={t.customerDashboard.receiptPlaceholder}
                         value={renewalReceipt}
                         onChange={(e) => setRenewalReceipt(e.target.value)}
@@ -992,9 +1062,24 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <div className="flex items-center gap-3 pt-2 flex-wrap">
                     <button
                       type="submit"
-                      className="bg-[#FFD700] hover:bg-[#FACC15] text-black font-extrabold px-6 py-2.5 rounded-xl transition-all shadow-xs"
+                      disabled={isSubmittingRenewal}
+                      className={`font-extrabold px-6 py-2.5 rounded-xl transition-all shadow-xs flex items-center gap-2 ${
+                        isSubmittingRenewal
+                          ? 'bg-amber-300 text-neutral-600 cursor-not-allowed opacity-75'
+                          : 'bg-[#FFD700] hover:bg-[#FACC15] text-black cursor-pointer'
+                      }`}
                     >
-                      {t.customerDashboard.submitVerificationBtn}
+                      {isSubmittingRenewal ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>{currentLanguage === 'ar' ? 'جاري التسجيل...' : currentLanguage === 'en' ? 'Submitting...' : 'Enregistrement en cours...'}</span>
+                        </>
+                      ) : (
+                        <span>{t.customerDashboard.submitVerificationBtn}</span>
+                      )}
                     </button>
                     <a
                       href={`https://wa.me/${settings.supportWhatsAppNumber.replace(/\D/g, '')}?text=${encodeURIComponent(
@@ -1013,6 +1098,58 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     </a>
                   </div>
                 </form>
+
+                {/* Profile Renewal Transfers History */}
+                {transfers.filter((t) => t.profileId === currentProfile?.id).length > 0 && (
+                  <div className="pt-4 border-t border-slate-100 space-y-3">
+                    <h4 className="font-bold text-black text-xs uppercase tracking-wider">
+                      {currentLanguage === 'ar' ? 'سجل تحويلات التجديد' : currentLanguage === 'en' ? 'Renewal Transfer History' : 'Historique des virements de renouvellement'}
+                    </h4>
+                    <div className="space-y-2">
+                      {transfers
+                        .filter((t) => t.profileId === currentProfile?.id)
+                        .map((trn) => (
+                          <div
+                            key={trn.id}
+                            className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-xs flex items-center justify-between flex-wrap gap-2"
+                          >
+                            <div>
+                              <span className="font-mono font-bold text-black">{trn.receiptNumber}</span>
+                              <span className="text-slate-500 ml-2">
+                                ({trn.amountMAD} {t.common.currency} — {trn.periodDescription})
+                              </span>
+                              <p className="text-[10px] text-slate-400 font-mono">
+                                {trn.id} · {new Date(trn.submittedAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <span
+                              className={`text-[11px] font-bold px-2 py-0.5 rounded-md uppercase ${
+                                trn.status === 'approved'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : trn.status === 'rejected'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {trn.status === 'approved'
+                                ? currentLanguage === 'ar'
+                                  ? 'تم التأكيد والتمديد'
+                                  : currentLanguage === 'en'
+                                  ? 'Approved & Extended'
+                                  : 'Validé & Prolongé'
+                                : trn.status === 'rejected'
+                                ? currentLanguage === 'ar'
+                                  ? 'مرفوض'
+                                  : currentLanguage === 'en'
+                                  ? 'Rejected'
+                                  : 'Rejeté'
+                                : t.customerDashboard.pendingManualVerification}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
