@@ -30,24 +30,22 @@ export const leadService = {
   async submitLead(lead: LeadSubmission): Promise<LeadSubmission> {
     if (!supabase) throw new Error('Supabase client not configured');
 
-    const payload = {
-      profile_id: lead.profileId,
-      profile_name: lead.profileName,
-      name: lead.name,
-      phone: lead.phone,
-      email: lead.email || '',
-      company: lead.company || '',
-      notes: lead.notes || '',
-      promotional_consent: Boolean(lead.promotionalConsent),
+    const { data, error } = await (supabase as any).rpc('submit_public_lead', {
+      p_profile_id: lead.profileId,
+      p_name: lead.name,
+      p_phone: lead.phone,
+      p_email: lead.email || '',
+      p_company: lead.company || '',
+      p_notes: lead.notes || '',
+      p_promotional_consent: Boolean(lead.promotionalConsent),
+    });
+
+    if (error || !data) throw error || new Error('Lead submission failed');
+
+    return {
+      ...lead,
+      id: data.lead_id,
     };
-
-    const { data, error } = await (supabase.from('leads') as any)
-      .insert(payload)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return mapRowToLead(data as LeadRow);
   },
 
   async getProfileLeads(profileId: string): Promise<LeadSubmission[]> {

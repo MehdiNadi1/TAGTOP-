@@ -396,55 +396,62 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       }
     }
 
-    // 1.5: Server-side pricing override — insert order with tampered price 0 MAD
-    //      Trigger must override price_mad to 250 MAD for starter/branded/1 card
+    // 1.5: Guest checkout via submit_guest_order RPC
+    //      RPC authoritatively calculates server-side price (250 MAD for starter/branded/1 card)
+    //      and enforces safe initial statuses (received, cod_pending, profile_id=null)
     {
-      const { data, error } = await anonClient
-        .from('orders')
-        .insert({
-          customer_name: 'Guest Test Anon',
-          customer_phone: '+212600112233',
-          customer_email: 'guest-test@tagtop-test.invalid',
-          city: 'Casablanca',
-          address: 'Boulevard Zerktouni',
-          package_tier: 'starter',
-          card_color: 'black',
-          card_branding: 'branded',
-          card_quantity: 1,
-          price_mad: 0.00, // deliberately tampered; trigger must correct to 250.00
-          wooden_stand_selected: false,
-          // profile_id deliberately omitted (guest cannot link profiles)
-        })
-        .select('id, price_mad, payment_status, order_status, profile_id')
-        .single();
+      const { data, error } = await anonClient.rpc('submit_guest_order', {
+        p_customer_name: 'Guest Test Anon',
+        p_customer_phone: '+212600112233',
+        p_customer_email: 'guest-test@tagtop-test.invalid',
+        p_city: 'Casablanca',
+        p_address: 'Boulevard Zerktouni',
+        p_package_tier: 'starter',
+        p_card_color: 'black',
+        p_card_branding: 'branded',
+        p_card_quantity: 1,
+        p_wooden_stand_selected: false,
+      });
 
-      if (error) {
-        fail('Anonymous', '1.5 Server-side price override: order INSERT must succeed', error.message);
-      } else if (!data) {
-        fail('Anonymous', '1.5 Server-side price override: no data returned', '');
+      if (error || !data) {
+        fail('Anonymous', '1.5 submit_guest_order RPC failed', error?.message || 'no data returned');
       } else {
-        orderAId = data.id;
+        const result = data as Record<string, unknown>;
+        orderAId = String(result.order_id);
         cleanupQueue.push({ table: 'orders', id: orderAId });
 
-        const correctedPrice = Number(data.price_mad) === 250.00;
-        const safePmtStatus = data.payment_status === 'cod_pending';
-        const safeOrderStatus = data.order_status === 'received';
-        const noProfileLinked = data.profile_id === null;
+        const correctedPrice = Number(result.price_mad) === 250.00;
+        const safePmtStatus = result.payment_status === 'cod_pending';
+        const safeOrderStatus = result.order_status === 'received';
+        const noProfileLinked = result.profile_id === null;
 
         if (correctedPrice && safePmtStatus && safeOrderStatus && noProfileLinked) {
-          pass('Anonymous', '1.5 Server-side price override: 0 MAD → 250 MAD, status=cod_pending', `price=${data.price_mad}`);
+          pass('Anonymous', '1.5 submit_guest_order RPC: price=250 MAD, status=cod_pending, profile_id=null', `price=${result.price_mad}`);
         } else {
-          fail('Anonymous', '1.5 Server-side price override: unexpected values', JSON.stringify(data));
+          fail('Anonymous', '1.5 submit_guest_order RPC: unexpected values', JSON.stringify(result));
         }
       }
     }
 
-    // 1.6: Guest cannot link existing profile — trigger must reject
+    // 1.6: Anonymous direct SELECT on orders table is denied (prevents order enumeration)
+    {
+      const { data, error } = await anonClient
+        .from('orders')
+        .select('id, customer_name, customer_email, price_mad');
+      const denied = error || (Array.isArray(data) && data.length === 0);
+      if (denied) {
+        pass('Anonymous', '1.6 Anonymous direct SELECT on orders table is denied (prevents order enumeration)', error?.message || '0 rows');
+      } else {
+        fail('Anonymous', '1.6 Anonymous direct SELECT on orders table must be denied', `${data?.length} rows exposed!`);
+      }
+    }
+
+    // 1.7: Anonymous direct INSERT on orders table is denied (guest checkout must use RPC)
     {
       const { error } = await anonClient
         .from('orders')
         .insert({
-          customer_name: 'Guest Takeover Attempt',
+          customer_name: 'Bypassing Attacker',
           customer_phone: '+212600000001',
           customer_email: 'attacker@tagtop-test.invalid',
           city: 'Casablanca',
@@ -453,21 +460,99 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
           card_color: 'black',
           card_branding: 'branded',
           card_quantity: 1,
-          price_mad: 250.00,
+          price_mad: 0.00,
           wooden_stand_selected: false,
-          profile_id: profileAId, // Attempt to link to Customer A's existing profile
         });
 
       if (error) {
-        pass('Anonymous', '1.6 Guest profile linking is rejected by trigger', error.message.slice(0, 80));
+        pass('Anonymous', '1.7 Anonymous direct INSERT on orders table is denied (must use RPC)', error.message.slice(0, 80));
       } else {
-        // If no error, verify that the order was inserted WITHOUT the profile_id
-        // (The trigger should have raised, but let's be defensive)
-        fail('Anonymous', '1.6 Guest profile linking: trigger did not raise an exception', 'INSERT succeeded unexpectedly');
+        fail('Anonymous', '1.7 Anonymous direct INSERT on orders table should be denied', 'Direct INSERT succeeded');
       }
     }
 
-    // 1.7: Anonymous bank transfer insertion must be rejected
+    // 1.8: Guest checkout RPC rejects Pro and Enterprise tiers without sales quote
+    {
+      const { error } = await anonClient.rpc('submit_guest_order', {
+        p_customer_name: 'Quote Required Test',
+        p_customer_phone: '+212600000002',
+        p_customer_email: 'quote@tagtop-test.invalid',
+        p_city: 'Rabat',
+        p_address: 'Souissi',
+        p_package_tier: 'pro',
+      });
+
+      if (error) {
+        pass('Anonymous', '1.8 submit_guest_order RPC rejects Pro tier without sales quote', error.message.slice(0, 80));
+      } else {
+        fail('Anonymous', '1.8 submit_guest_order RPC must reject Pro tier without sales quote', 'Pro tier accepted');
+      }
+    }
+
+    // 1.9: Public lead submission via submit_public_lead RPC succeeds
+    {
+      const { data: leadData, error: leadErr } = await anonClient.rpc('submit_public_lead', {
+        p_profile_id: profileAId,
+        p_name: 'Lead Visitor',
+        p_phone: '+212600333001',
+        p_email: 'lead@tagtop-test.invalid',
+        p_promotional_consent: false,
+      });
+
+      if (leadErr || !leadData) {
+        fail('Anonymous', '1.9 submit_public_lead RPC failed on active profile', leadErr?.message || 'no data');
+      } else {
+        const leadRes = leadData as Record<string, unknown>;
+        leadAId = String(leadRes.lead_id);
+        cleanupQueue.push({ table: 'leads', id: leadAId });
+        pass('Anonymous', '1.9 submit_public_lead RPC succeeds, returns confirmation without data leak', `lead_id=${leadAId}`);
+      }
+    }
+
+    // 1.10: Anonymous direct SELECT on leads table is denied (prevents lead scraping)
+    {
+      const { data, error } = await anonClient
+        .from('leads')
+        .select('id, name, phone, email');
+      const denied = error || (Array.isArray(data) && data.length === 0);
+      if (denied) {
+        pass('Anonymous', '1.10 Anonymous direct SELECT on leads table is denied (prevents lead scraping)', error?.message || '0 rows');
+      } else {
+        fail('Anonymous', '1.10 Anonymous direct SELECT on leads table must be denied', `${data?.length} rows exposed!`);
+      }
+    }
+
+    // 1.11: Anonymous direct INSERT on leads table is denied (inquiries must use RPC)
+    {
+      const { error } = await anonClient
+        .from('leads')
+        .insert({
+          profile_id: profileAId,
+          name: 'Direct Attacker',
+          phone: '+212600000003',
+        });
+
+      if (error) {
+        pass('Anonymous', '1.11 Anonymous direct INSERT on leads table is denied (must use RPC)', error.message.slice(0, 80));
+      } else {
+        fail('Anonymous', '1.11 Anonymous direct INSERT on leads table should be denied', 'Direct INSERT succeeded');
+      }
+    }
+
+    // 1.12: Anonymous direct SELECT on users table is denied (prevents account enumeration)
+    {
+      const { data, error } = await anonClient
+        .from('users')
+        .select('id, email, full_name, role');
+      const denied = error || (Array.isArray(data) && data.length === 0);
+      if (denied) {
+        pass('Anonymous', '1.12 Anonymous direct SELECT on users table is denied (account privacy)', error?.message || '0 rows');
+      } else {
+        fail('Anonymous', '1.12 Anonymous direct SELECT on users table must be denied', `${data?.length} rows exposed!`);
+      }
+    }
+
+    // 1.13: Anonymous bank transfer insertion must be rejected
     {
       const { error } = await anonClient
         .from('bank_transfers')
@@ -482,19 +567,19 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
         });
 
       if (error) {
-        pass('Anonymous', '1.7 Anonymous bank transfer is rejected (RLS + trigger)', error.message.slice(0, 80));
+        pass('Anonymous', '1.13 Anonymous bank transfer is rejected (RLS + trigger)', error.message.slice(0, 80));
       } else {
-        fail('Anonymous', '1.7 Anonymous bank transfer must be denied', 'INSERT succeeded — RLS or trigger bypassed');
+        fail('Anonymous', '1.13 Anonymous bank transfer must be denied', 'INSERT succeeded — RLS or trigger bypassed');
       }
     }
 
-    // 1.8: Anonymous invocation of evaluate_profile_subscriptions must be denied
+    // 1.14: Anonymous invocation of evaluate_profile_subscriptions must be denied
     {
       const { error } = await anonClient.rpc('evaluate_profile_subscriptions');
       if (error) {
-        pass('Anonymous', '1.8 evaluate_profile_subscriptions denied to anonymous caller', error.message.slice(0, 80));
+        pass('Anonymous', '1.14 evaluate_profile_subscriptions denied to anonymous caller', error.message.slice(0, 80));
       } else {
-        fail('Anonymous', '1.8 evaluate_profile_subscriptions must deny anonymous caller', 'RPC executed without auth');
+        fail('Anonymous', '1.14 evaluate_profile_subscriptions must deny anonymous caller', 'RPC executed without auth');
       }
     }
 
@@ -598,9 +683,36 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
       }
     }
 
-    // 2.5: Customer A can view their own orders
-    if (orderAId) {
-      // The order was created by anon, so customer_id is NULL. Let's create an authenticated order.
+    // 2.5: Customer A cannot modify user ID (immutability trigger)
+    {
+      const { error } = await clientA
+        .from('users')
+        .update({ id: '00000000-0000-0000-0000-000000000000' })
+        .eq('id', userIdA);
+
+      if (error) {
+        pass('Customer A', '2.5 User ID modification attempt rejected by immutability trigger', error.message.slice(0, 80));
+      } else {
+        fail('Customer A', '2.5 User ID modification attempt must be rejected', 'Update succeeded');
+      }
+    }
+
+    // 2.6: Customer A cannot modify email directly (immutability trigger)
+    {
+      const { error } = await clientA
+        .from('users')
+        .update({ email: 'hacked-email@tagtop-test.invalid' })
+        .eq('id', userIdA);
+
+      if (error) {
+        pass('Customer A', '2.6 Email direct modification attempt rejected by immutability trigger', error.message.slice(0, 80));
+      } else {
+        fail('Customer A', '2.6 Email direct modification attempt must be rejected', 'Update succeeded');
+      }
+    }
+
+    // 2.7: Customer A can create authenticated order via table insert
+    {
       const { data: authOrder, error: authOrderErr } = await clientA
         .from('orders')
         .insert({
@@ -620,16 +732,33 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
         .single();
 
       if (authOrderErr || !authOrder) {
-        fail('Customer A', '2.5 Customer A authenticated order creation', authOrderErr?.message || 'no data');
+        fail('Customer A', '2.7 Customer A authenticated order creation', authOrderErr?.message || 'no data');
       } else {
         cleanupQueue.push({ table: 'orders', id: authOrder.id });
         const priceOk = Number(authOrder.price_mad) === 250.00;
         const ownerOk = authOrder.customer_id === userIdA;
         if (priceOk && ownerOk) {
-          pass('Customer A', '2.5 Authenticated order: price=250 MAD, customer_id auto-set by trigger', `id=${authOrder.id}`);
+          pass('Customer A', '2.7 Authenticated order: price=250 MAD, customer_id auto-set by trigger', `id=${authOrder.id}`);
         } else {
-          fail('Customer A', '2.5 Authenticated order has wrong price or owner', JSON.stringify(authOrder));
+          fail('Customer A', '2.7 Authenticated order has wrong price or owner', JSON.stringify(authOrder));
         }
+      }
+    }
+
+    // 2.8: Customer A cannot view other customers orders
+    {
+      const { data: otherOrders, error: otherOrdersErr } = await clientA
+        .from('orders')
+        .select('id, customer_id')
+        .neq('customer_id', userIdA);
+
+      const isolated = !otherOrdersErr && Array.isArray(otherOrders) && otherOrders.length === 0;
+      if (isolated) {
+        pass('Customer A', '2.8 Customer A cannot view other customers orders (RLS customer isolation)', '0 rows');
+      } else if (otherOrdersErr) {
+        pass('Customer A', '2.8 Other orders query denied by RLS', otherOrdersErr.message.slice(0, 80));
+      } else {
+        fail('Customer A', '2.8 Customer A saw other customers orders — customer isolation breached!', `${otherOrders?.length} rows`);
       }
     }
 
@@ -690,24 +819,20 @@ export async function runLiveDatabaseIntegrationTests(): Promise<void> {
 
     // 3.3: Customer B CANNOT read Customer A's leads
     {
-      // First create a lead on Profile A as anon
-      const { data: leadData, error: leadErr } = await anonClient
-        .from('leads')
-        .insert({
-          profile_id: profileAId,
-          profile_name: 'Test A',
-          name: 'Lead Visitor',
-          phone: '+212600333001',
-          email: 'lead@tagtop-test.invalid',
-          promotional_consent: false,
-        })
-        .select('id')
-        .single();
+      // First create a lead on Profile A via submit_public_lead RPC
+      const { data: leadData, error: leadErr } = await anonClient.rpc('submit_public_lead', {
+        p_profile_id: profileAId,
+        p_name: 'Lead Visitor Cross Isolation',
+        p_phone: '+212600333001',
+        p_email: 'lead@tagtop-test.invalid',
+        p_promotional_consent: false,
+      });
 
       if (leadErr || !leadData) {
         fail('Customer B', '3.3 Setup: lead submission on active Profile A should succeed', leadErr?.message || 'no data');
       } else {
-        leadAId = leadData.id;
+        const leadRes = leadData as Record<string, unknown>;
+        leadAId = String(leadRes.lead_id);
         cleanupQueue.push({ table: 'leads', id: leadAId });
 
         // Customer B tries to read Profile A's leads

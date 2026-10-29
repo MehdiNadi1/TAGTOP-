@@ -45,9 +45,40 @@ export const orderService = {
   async createOrder(order: NfcCardOrder, customerId?: string): Promise<NfcCardOrder> {
     if (!supabase) throw new Error('Supabase client not configured');
 
+    if (!customerId) {
+      // Guest Checkout via narrowly scoped SECURITY DEFINER RPC
+      const { data, error } = await (supabase as any).rpc('submit_guest_order', {
+        p_customer_name: order.customerName,
+        p_customer_phone: order.customerPhone,
+        p_customer_email: order.customerEmail,
+        p_city: order.city,
+        p_address: order.address,
+        p_package_tier: order.packageTier,
+        p_card_color: order.cardColor,
+        p_card_branding: order.cardBranding,
+        p_card_quantity: order.cardQuantity,
+        p_wooden_stand_selected: order.woodenStandSelected,
+        p_profile_name: order.profileName,
+        p_logo_file_name: order.logoFileName || null,
+        p_logo_preview_url: order.logoPreviewUrl || null,
+      });
+
+      if (error || !data) throw error || new Error('Guest checkout failed');
+
+      return {
+        ...order,
+        id: data.order_id,
+        priceMAD: Number(data.price_mad),
+        cardQuantity: data.card_quantity,
+        orderStatus: data.order_status,
+        paymentStatus: data.payment_status,
+        profileId: '',
+      };
+    }
+
     const payload = {
       id: order.id,
-      customer_id: customerId || null,
+      customer_id: customerId,
       customer_name: order.customerName,
       customer_phone: order.customerPhone,
       customer_email: order.customerEmail,

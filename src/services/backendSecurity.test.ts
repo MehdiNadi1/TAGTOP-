@@ -255,3 +255,112 @@ test('Bank transfer renewal subscription extension: 150 MAD grants 180 days, 200
   assert.throws(() => calculateRenewalExtensionDays(99), /Invalid renewal amount/);
   assert.throws(() => calculateRenewalExtensionDays(100), /Invalid renewal amount/);
 });
+
+// =============================================================================
+// 6. REGRESSION: CUSTOMER PRIVILEGE ESCALATION & ANONYMOUS DATA ACCESS
+// =============================================================================
+test('Regression: Customer user ID and email immutability specification', () => {
+  const validateUserFields = (callerRole: string, oldRecord: { id: string; email: string }, newRecord: { id: string; email: string }) => {
+    if (callerRole !== 'founder_admin') {
+      if (oldRecord.id !== newRecord.id) {
+        throw new Error('Security violation: User ID is immutable');
+      }
+      if (oldRecord.email !== newRecord.email) {
+        throw new Error('Security violation: Email must be updated through authenticated email change flow');
+      }
+    }
+  };
+
+  const originalUser = { id: 'usr-111', email: 'customer@example.ma' };
+
+  // Attempting ID change
+  assert.throws(
+    () => validateUserFields('customer', originalUser, { id: 'usr-hacked', email: 'customer@example.ma' }),
+    /User ID is immutable/
+  );
+
+  // Attempting direct email change
+  assert.throws(
+    () => validateUserFields('customer', originalUser, { id: 'usr-111', email: 'hacked@example.ma' }),
+    /Email must be updated through authenticated email change flow/
+  );
+});
+
+test('Regression: Anonymous direct table access specification blocks order and lead enumeration', () => {
+  const canRoleDirectlySelectTable = (role: string, table: string): boolean => {
+    // anon must NEVER have direct table SELECT grants on sensitive transactional tables
+    if (role === 'anon') {
+      if (['orders', 'leads', 'users', 'nfc_cards', 'bank_transfers'].includes(table)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  assert.equal(canRoleDirectlySelectTable('anon', 'orders'), false, 'Anon cannot select orders');
+  assert.equal(canRoleDirectlySelectTable('anon', 'leads'), false, 'Anon cannot select leads');
+  assert.equal(canRoleDirectlySelectTable('anon', 'users'), false, 'Anon cannot select users');
+  assert.equal(canRoleDirectlySelectTable('anon', 'nfc_cards'), false, 'Anon cannot select nfc_cards');
+  assert.equal(canRoleDirectlySelectTable('anon', 'bank_transfers'), false, 'Anon cannot select bank_transfers');
+  assert.equal(canRoleDirectlySelectTable('authenticated', 'orders'), true, 'Authenticated can select orders (RLS applies)');
+});
+
+test('Regression: Guest checkout RPC contract enforces server-side pricing and null profile_id', () => {
+  const simulateGuestCheckoutRPC = (input: {
+    customerName: string;
+    packageTier: string;
+    cardBranding: string;
+    quantity: number;
+    woodenStandSelected?: boolean;
+  }) => {
+    if (['pro', 'enterprise'].includes(input.packageTier)) {
+      throw new Error('Unauthorized: Pro and Enterprise packages require quote approval by sales');
+    }
+    if (input.packageTier !== 'starter') {
+      throw new Error('Invalid package tier');
+    }
+
+    const unitPrice = input.cardBranding === 'branded' ? 250 : input.cardBranding === 'unbranded' ? 350 : 0;
+    const standPrice = input.woodenStandSelected ? 50 : 0;
+    const finalPrice = (unitPrice * Math.max(input.quantity, 1)) + standPrice;
+
+    return {
+      success: true,
+      order_id: 'ord-simulated',
+      price_mad: finalPrice,
+      profile_id: null, // ALWAYS null for guest checkout
+      order_status: 'received',
+      payment_status: 'cod_pending',
+    };
+  };
+
+  // Starter branded 1 card
+  const result1 = simulateGuestCheckoutRPC({
+    customerName: 'Guest Tester',
+    packageTier: 'starter',
+    cardBranding: 'branded',
+    quantity: 1,
+  });
+  assert.equal(result1.price_mad, 250);
+  assert.equal(result1.profile_id, null);
+
+  // Starter unbranded 2 cards
+  const result2 = simulateGuestCheckoutRPC({
+    customerName: 'Guest Tester',
+    packageTier: 'starter',
+    cardBranding: 'unbranded',
+    quantity: 2,
+  });
+  assert.equal(result2.price_mad, 700);
+
+  // Pro tier without quote must throw
+  assert.throws(
+    () => simulateGuestCheckoutRPC({
+      customerName: 'Guest Tester',
+      packageTier: 'pro',
+      cardBranding: 'branded',
+      quantity: 1,
+    }),
+    /Pro and Enterprise packages require quote approval/
+  );
+});

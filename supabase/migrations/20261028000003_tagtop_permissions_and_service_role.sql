@@ -1,42 +1,59 @@
 -- TAGTOP Supabase PostgreSQL Migration: 20261028000003_tagtop_permissions_and_service_role.sql
--- Description: Grants, Permissions, and Service Role Compatibility for TAGTOP NFC Platform.
--- Hardened for Migration 3:
--- 1. Resolves "permission denied for table users" by granting explicit table privileges to service_role and authenticated.
--- 2. Updates Column-Level Immutability Triggers to recognize service_role and founder_admin, allowing backend administration while strictly blocking customer tampering.
--- 3. Grants least-privilege SQL permissions to anon and authenticated across all existing TAGTOP tables.
--- 4. Enables guest checkout INSERT ... RETURNING while maintaining strict customer isolation (unauthenticated SELECT cannot view other orders).
--- 5. Enables guest lead submission INSERT ... RETURNING while keeping leads private to profile owners.
--- 6. Preserves server-side pricing, guest checkout protections, and subscription rules.
+-- Description: Hardened Grants, Permissions, Service Role Compatibility, and Narrowly Scoped RPCs for TAGTOP.
+--
+-- Security Hardening:
+-- 1. Corrects `is_admin_or_service_role()`: Removed current_user and session_user entirely to prevent function-owner
+--    privilege leakage in SECURITY DEFINER contexts. Authorizes founder admins strictly via verified auth identity (auth.uid())
+--    and the protected public.users.role record, and recognizes service-role operations strictly through the trusted
+--    execution context (auth.role() = 'service_role').
+-- 2. Removed `is_current_insert_returning()` and current_query() inspection.
+-- 3. Anonymous visitors are granted NO SELECT or INSERT access to public.orders and public.leads, completely eliminating
+--    table enumeration and data scraping vectors.
+-- 4. Narrowly scoped SECURITY DEFINER RPC `submit_guest_order()` for guest checkout: validates inputs, enforces server-side
+--    authoritative pricing (250 MAD branded / 350 MAD unbranded), rejects Pro/Enterprise direct checkout, blocks guest
+--    profile linking, inserts the order with customer_id IS NULL and profile_id IS NULL, and returns only safe confirmation data.
+-- 5. Narrowly scoped SECURITY DEFINER RPC `submit_public_lead()` for public leads: validates inputs, verifies active target profile,
+--    records promotional consent, inserts the lead, and returns only confirmation data.
+-- 6. Updated Column-Level Immutability Triggers to check `is_admin_or_service_role()`.
+-- 7. Minimal PostgreSQL grants across all tables.
 
 -- =============================================================================
 -- 1. ADMINISTRATIVE CONTEXT & HELPER FUNCTIONS
 -- =============================================================================
 
+-- Determine if current execution context is authenticated founder admin
+CREATE OR REPLACE FUNCTION public.is_founder_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN FALSE;
+  END IF;
+  RETURN EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = auth.uid()
+      AND role = 'founder_admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.is_founder_admin() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_founder_admin() TO anon, authenticated, service_role;
+
 -- Determine if current execution context is founder admin or service role
+-- CRITICAL SECURITY FIX: Never uses current_user or session_user (prevents function-owner privilege leakage).
+-- Strictly checks:
+-- - Verified founder admin identity via auth.uid() and public.users.role = 'founder_admin'
+-- - Trusted Supabase execution context via signed JWT role (auth.role() = 'service_role')
 CREATE OR REPLACE FUNCTION public.is_admin_or_service_role()
 RETURNS BOOLEAN AS $$
 BEGIN
-  -- 1. Check if caller is authenticated founder admin
+  -- 1. Check if caller is authenticated founder admin with verified role record
   IF public.is_founder_admin() THEN
     RETURN TRUE;
   END IF;
 
-  -- 2. Check if caller is service_role via Supabase auth context
+  -- 2. Check if caller is executing with verified service_role JWT
   IF auth.role() = 'service_role' THEN
-    RETURN TRUE;
-  END IF;
-
-  -- 3. Check JWT claims if present
-  IF coalesce(current_setting('request.jwt.claim.role', true), '') = 'service_role' THEN
-    RETURN TRUE;
-  END IF;
-
-  -- 4. Check PostgreSQL session user / current user for administrative contexts
-  IF current_user IN ('postgres', 'service_role', 'supabase_admin') THEN
-    RETURN TRUE;
-  END IF;
-
-  IF session_user IN ('postgres', 'service_role', 'supabase_admin') THEN
     RETURN TRUE;
   END IF;
 
@@ -46,17 +63,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 REVOKE EXECUTE ON FUNCTION public.is_admin_or_service_role() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.is_admin_or_service_role() TO anon, authenticated, service_role;
-
--- Helper to safely distinguish INSERT ... RETURNING statements from standalone SELECT queries
-CREATE OR REPLACE FUNCTION public.is_current_insert_returning()
-RETURNS BOOLEAN AS $$
-BEGIN
-  RETURN current_query() ~* '^\s*(with\s+.*\s+)?insert\s+into';
-END;
-$$ LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public, pg_temp;
-
-REVOKE EXECUTE ON FUNCTION public.is_current_insert_returning() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.is_current_insert_returning() TO anon, authenticated, service_role;
 
 -- =============================================================================
 -- 2. UPDATED COLUMN-LEVEL IMMUTABILITY TRIGGERS (SERVICE ROLE COMPATIBLE)
@@ -277,10 +283,256 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 -- =============================================================================
--- 3. ADMINISTRATIVE RPCS (SERVICE ROLE COMPATIBLE)
+-- 3. NARROWLY SCOPED SECURITY DEFINER RPCS (GUEST CHECKOUT & LEADS)
 -- =============================================================================
 
--- 3.1: Approve Bank Transfer
+-- 3.1: Guest Checkout Order RPC
+-- Validates inputs, calculates server-side price from system_settings, inserts order without profile linking,
+-- and returns ONLY safe confirmation data. Does not give anonymous callers SELECT access to other orders.
+CREATE OR REPLACE FUNCTION public.submit_guest_order(
+  p_customer_name TEXT,
+  p_customer_phone TEXT,
+  p_customer_email TEXT,
+  p_city TEXT,
+  p_address TEXT,
+  p_package_tier tagtop_package_tier DEFAULT 'starter',
+  p_card_color tagtop_card_color DEFAULT 'black',
+  p_card_branding tagtop_card_branding DEFAULT 'branded',
+  p_card_quantity INTEGER DEFAULT 1,
+  p_wooden_stand_selected BOOLEAN DEFAULT FALSE,
+  p_profile_name TEXT DEFAULT '',
+  p_logo_file_name TEXT DEFAULT NULL,
+  p_logo_preview_url TEXT DEFAULT NULL
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_settings RECORD;
+  v_unit_card_price NUMERIC(10, 2);
+  v_stand_price NUMERIC(10, 2) := 0.00;
+  v_final_price_mad NUMERIC(10, 2);
+  v_order_id TEXT;
+  v_card_qty INTEGER;
+BEGIN
+  -- 1. Input Validation
+  IF p_customer_name IS NULL OR length(trim(p_customer_name)) = 0 THEN
+    RAISE EXCEPTION 'Customer name is required';
+  END IF;
+  IF p_customer_phone IS NULL OR length(trim(p_customer_phone)) = 0 THEN
+    RAISE EXCEPTION 'Customer phone is required';
+  END IF;
+  IF p_customer_email IS NULL OR length(trim(p_customer_email)) = 0 THEN
+    RAISE EXCEPTION 'Customer email is required';
+  END IF;
+  IF p_city IS NULL OR length(trim(p_city)) = 0 THEN
+    RAISE EXCEPTION 'City is required';
+  END IF;
+  IF p_address IS NULL OR length(trim(p_address)) = 0 THEN
+    RAISE EXCEPTION 'Address is required';
+  END IF;
+
+  v_card_qty := COALESCE(p_card_quantity, 1);
+  IF v_card_qty < 1 THEN
+    v_card_qty := 1;
+  END IF;
+
+  -- 2. Authoritative Server-Side Pricing Lookup from public.system_settings
+  SELECT
+    starter_branded_price_mad,
+    starter_unbranded_price_mad,
+    wooden_stand_enabled,
+    wooden_stand_price_mad
+  INTO v_settings
+  FROM public.system_settings
+  WHERE id = 1;
+
+  -- 3. Validate package tier (starter only for direct web checkout; pro/enterprise strictly require quote)
+  IF p_package_tier = 'starter' THEN
+    IF p_card_branding = 'branded' THEN
+      v_unit_card_price := COALESCE(v_settings.starter_branded_price_mad, 250.00);
+    ELSIF p_card_branding = 'unbranded' THEN
+      v_unit_card_price := COALESCE(v_settings.starter_unbranded_price_mad, 350.00);
+    ELSE
+      RAISE EXCEPTION 'Invalid card branding: %', p_card_branding;
+    END IF;
+  ELSIF p_package_tier IN ('pro', 'enterprise') THEN
+    RAISE EXCEPTION 'Unauthorized: Pro and Enterprise packages require quote approval by sales';
+  ELSE
+    RAISE EXCEPTION 'Invalid package tier: %', p_package_tier;
+  END IF;
+
+  -- 4. Stand accessory validation
+  IF COALESCE(p_wooden_stand_selected, FALSE) THEN
+    IF COALESCE(v_settings.wooden_stand_enabled, FALSE) THEN
+      v_stand_price := COALESCE(v_settings.wooden_stand_price_mad, 0.00);
+    ELSE
+      v_stand_price := 0.00;
+    END IF;
+  ELSE
+    v_stand_price := 0.00;
+  END IF;
+
+  -- 5. Calculate Server Price
+  v_final_price_mad := (v_unit_card_price * v_card_qty) + v_stand_price;
+
+  -- 6. Insert Order Record
+  -- Notice: customer_id is NULL (guest), profile_id is NULL (guest cannot link profile)
+  INSERT INTO public.orders (
+    customer_id,
+    customer_name,
+    customer_phone,
+    customer_email,
+    city,
+    address,
+    package_tier,
+    card_color,
+    card_branding,
+    card_quantity,
+    price_mad,
+    wooden_stand_selected,
+    wooden_stand_price_mad,
+    profile_id,
+    profile_name,
+    logo_file_name,
+    logo_preview_url,
+    order_status,
+    payment_status,
+    proof_approved,
+    is_demo
+  )
+  VALUES (
+    NULL,
+    trim(p_customer_name),
+    trim(p_customer_phone),
+    trim(p_customer_email),
+    trim(p_city),
+    trim(p_address),
+    p_package_tier,
+    COALESCE(p_card_color, 'black'),
+    p_card_branding,
+    v_card_qty,
+    v_final_price_mad,
+    COALESCE(p_wooden_stand_selected, FALSE),
+    v_stand_price,
+    NULL, -- Guest orders cannot be linked to existing business profiles
+    COALESCE(p_profile_name, ''),
+    p_logo_file_name,
+    p_logo_preview_url,
+    'received',
+    'cod_pending',
+    FALSE,
+    FALSE
+  )
+  RETURNING id INTO v_order_id;
+
+  -- 7. Return safe confirmation data ONLY
+  RETURN jsonb_build_object(
+    'success', TRUE,
+    'order_id', v_order_id,
+    'price_mad', v_final_price_mad,
+    'card_quantity', v_card_qty,
+    'package_tier', p_package_tier,
+    'card_branding', p_card_branding,
+    'card_color', COALESCE(p_card_color, 'black'),
+    'order_status', 'received',
+    'payment_status', 'cod_pending',
+    'profile_id', NULL
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.submit_guest_order(
+  TEXT, TEXT, TEXT, TEXT, TEXT, tagtop_package_tier, tagtop_card_color, tagtop_card_branding, INTEGER, BOOLEAN, TEXT, TEXT, TEXT
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.submit_guest_order(
+  TEXT, TEXT, TEXT, TEXT, TEXT, tagtop_package_tier, tagtop_card_color, tagtop_card_branding, INTEGER, BOOLEAN, TEXT, TEXT, TEXT
+) TO anon, authenticated, service_role;
+
+-- 3.2: Public Lead Submission RPC
+-- Validates inputs, verifies target profile exists and is active, records consent, and returns only confirmation data.
+-- Does not give anonymous callers SELECT access to the leads table.
+CREATE OR REPLACE FUNCTION public.submit_public_lead(
+  p_profile_id TEXT,
+  p_name TEXT,
+  p_phone TEXT,
+  p_email TEXT DEFAULT '',
+  p_company TEXT DEFAULT '',
+  p_notes TEXT DEFAULT '',
+  p_promotional_consent BOOLEAN DEFAULT FALSE
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_lead_id UUID;
+  v_profile_name TEXT;
+BEGIN
+  -- 1. Input Validation
+  IF p_name IS NULL OR length(trim(p_name)) = 0 THEN
+    RAISE EXCEPTION 'Name is required';
+  END IF;
+  IF p_phone IS NULL OR length(trim(p_phone)) = 0 THEN
+    RAISE EXCEPTION 'Phone number is required';
+  END IF;
+  IF p_profile_id IS NULL OR length(trim(p_profile_id)) = 0 THEN
+    RAISE EXCEPTION 'Profile ID is required';
+  END IF;
+
+  -- 2. Verify target profile exists and is active / in grace period
+  SELECT display_name INTO v_profile_name
+  FROM public.business_profiles
+  WHERE id = p_profile_id
+    AND access_state IN ('active', 'renewal_due', 'grace_period');
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Target profile % is not accepting inquiries or does not exist', p_profile_id;
+  END IF;
+
+  -- 3. Insert Lead Record
+  INSERT INTO public.leads (
+    profile_id,
+    profile_name,
+    name,
+    phone,
+    email,
+    company,
+    notes,
+    promotional_consent,
+    submitted_at,
+    is_demo
+  )
+  VALUES (
+    p_profile_id,
+    COALESCE(v_profile_name, ''),
+    trim(p_name),
+    trim(p_phone),
+    trim(COALESCE(p_email, '')),
+    trim(COALESCE(p_company, '')),
+    trim(COALESCE(p_notes, '')),
+    COALESCE(p_promotional_consent, FALSE),
+    timezone('utc'::text, now()),
+    FALSE
+  )
+  RETURNING id INTO v_lead_id;
+
+  -- 4. Return safe confirmation data ONLY
+  RETURN jsonb_build_object(
+    'success', TRUE,
+    'lead_id', v_lead_id,
+    'profile_id', p_profile_id
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.submit_public_lead(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.submit_public_lead(
+  TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, BOOLEAN
+) TO anon, authenticated, service_role;
+
+-- =============================================================================
+-- 4. ADMINISTRATIVE RPCS (SERVICE ROLE COMPATIBLE)
+-- =============================================================================
+
+-- 4.1: Approve Bank Transfer
 CREATE OR REPLACE FUNCTION public.founder_approve_bank_transfer(
   p_transfer_id TEXT,
   p_founder_notes TEXT DEFAULT ''
@@ -348,7 +600,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 REVOKE EXECUTE ON FUNCTION public.founder_approve_bank_transfer(TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.founder_approve_bank_transfer(TEXT, TEXT) TO authenticated, service_role;
 
--- 3.2: Reject Bank Transfer
+-- 4.2: Reject Bank Transfer
 CREATE OR REPLACE FUNCTION public.founder_reject_bank_transfer(
   p_transfer_id TEXT,
   p_reason TEXT
@@ -374,7 +626,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 REVOKE EXECUTE ON FUNCTION public.founder_reject_bank_transfer(TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.founder_reject_bank_transfer(TEXT, TEXT) TO authenticated, service_role;
 
--- 3.3: Update Order Status
+-- 4.3: Update Order Status
 CREATE OR REPLACE FUNCTION public.founder_update_order_status(
   p_order_id TEXT,
   p_order_status tagtop_order_status,
@@ -421,12 +673,64 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 REVOKE EXECUTE ON FUNCTION public.founder_update_order_status(TEXT, tagtop_order_status, tagtop_payment_status) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.founder_update_order_status(TEXT, tagtop_order_status, tagtop_payment_status) TO authenticated, service_role;
 
+-- 4.4: Evaluate Profile Subscriptions
+CREATE OR REPLACE FUNCTION public.evaluate_profile_subscriptions()
+RETURNS JSONB AS $$
+DECLARE
+  v_now DATE := CURRENT_DATE;
+  v_grace_count INTEGER := 0;
+  v_suspended_count INTEGER := 0;
+BEGIN
+  IF NOT public.is_admin_or_service_role() THEN
+    RAISE EXCEPTION 'Unauthorized: Subscription evaluation restricted to service_role or founder admin';
+  END IF;
+
+  -- Step 1: Active or renewal_due profiles within their 14-day grace window enter grace_period
+  WITH transitioned_to_grace AS (
+    UPDATE public.business_profiles
+    SET
+      access_state = 'grace_period',
+      grace_deadline_date = (expiry_date + INTERVAL '14 days')::DATE,
+      updated_at = timezone('utc'::text, now())
+    WHERE access_state IN ('active', 'renewal_due')
+      AND expiry_date < v_now
+      AND v_now <= (expiry_date + INTERVAL '14 days')::DATE
+    RETURNING id
+  )
+  SELECT count(*) INTO v_grace_count FROM transitioned_to_grace;
+
+  -- Step 2: ANY profile past the 14-day grace period immediately transitions to expired_suspended
+  WITH transitioned_to_suspended AS (
+    UPDATE public.business_profiles
+    SET
+      access_state = 'expired_suspended',
+      updated_at = timezone('utc'::text, now())
+    WHERE (
+      (access_state = 'grace_period' AND (grace_deadline_date IS NULL OR v_now > grace_deadline_date))
+      OR
+      (access_state IN ('active', 'renewal_due') AND v_now > (expiry_date + INTERVAL '14 days')::DATE)
+    )
+    RETURNING id
+  )
+  SELECT count(*) INTO v_suspended_count FROM transitioned_to_suspended;
+
+  RETURN jsonb_build_object(
+    'evaluated_date', v_now,
+    'profiles_in_grace', v_grace_count,
+    'profiles_suspended', v_suspended_count
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.evaluate_profile_subscriptions() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.evaluate_profile_subscriptions() TO authenticated, service_role;
+
 -- =============================================================================
--- 4. RLS POLICIES FOR ORDERS & LEADS (GUEST RETURNING & CUSTOMER ISOLATION)
+-- 5. RLS POLICIES FOR ORDERS & LEADS (PREVENTING ANONYMOUS ENUMERATION)
 -- =============================================================================
 
--- Ensure orders SELECT allows customer to view their orders, admin to view all,
--- and anonymous callers to receive the row on INSERT ... RETURNING without exposing existing orders.
+-- Ensure orders SELECT allows authenticated customers to view own orders, admin to view all.
+-- Anonymous callers have ZERO SELECT policy and ZERO table grants (cannot enumerate or view any orders).
 DROP POLICY IF EXISTS "Customers can view own orders" ON public.orders;
 CREATE POLICY "Customers can view own orders"
   ON public.orders
@@ -435,11 +739,20 @@ CREATE POLICY "Customers can view own orders"
     (auth.uid() IS NOT NULL AND customer_id = auth.uid())
     OR (auth.uid() IS NOT NULL AND customer_email = (SELECT email FROM public.users WHERE id = auth.uid()))
     OR public.is_admin_or_service_role()
-    OR (auth.role() = 'anon' AND public.is_current_insert_returning())
   );
 
--- Ensure leads SELECT allows profile owners and admin to view leads,
--- and anonymous callers to receive the inserted record on INSERT ... RETURNING.
+-- Direct table INSERT restricted to authenticated customers inserting own orders or admin.
+DROP POLICY IF EXISTS "Customers can insert orders" ON public.orders;
+CREATE POLICY "Customers can insert orders"
+  ON public.orders
+  FOR INSERT
+  WITH CHECK (
+    customer_id = auth.uid()
+    OR public.is_admin_or_service_role()
+  );
+
+-- Ensure leads SELECT allows only profile owners and admin to view leads.
+-- Anonymous callers have ZERO SELECT policy and ZERO table grants (cannot enumerate or view any leads).
 DROP POLICY IF EXISTS "Owners can view leads on their profiles" ON public.leads;
 CREATE POLICY "Owners can view leads on their profiles"
   ON public.leads
@@ -451,18 +764,32 @@ CREATE POLICY "Owners can view leads on their profiles"
         AND bp.owner_id = auth.uid()
     )
     OR public.is_admin_or_service_role()
-    OR (auth.role() = 'anon' AND public.is_current_insert_returning())
+  );
+
+DROP POLICY IF EXISTS "Public can submit leads" ON public.leads;
+DROP POLICY IF EXISTS "Authenticated can submit leads" ON public.leads;
+CREATE POLICY "Authenticated can submit leads"
+  ON public.leads
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.business_profiles bp
+      WHERE bp.id = leads.profile_id
+        AND bp.access_state IN ('active', 'renewal_due', 'grace_period')
+    )
+    AND length(trim(name)) > 0
+    AND length(trim(phone)) > 0
   );
 
 -- =============================================================================
--- 5. LEAST-PRIVILEGE SQL GRANTS FOR ALL ROLES
+-- 6. LEAST-PRIVILEGE SQL GRANTS FOR ALL ROLES
 -- =============================================================================
 
 -- Ensure schema usage
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 
 -- -----------------------------------------------------------------------------
--- 5.1: public.users
+-- 6.1: public.users
 -- service_role: full control for administrative provisioning and elevation
 -- authenticated: select and update own record (enforced by RLS & immutability trigger)
 -- anon: NO access (revoked)
@@ -472,92 +799,93 @@ GRANT ALL ON TABLE public.users TO service_role;
 GRANT SELECT, UPDATE ON TABLE public.users TO authenticated;
 
 -- -----------------------------------------------------------------------------
--- 5.2: public.business_profiles
+-- 6.2: public.business_profiles
 -- service_role: full control
 -- authenticated: select, insert, update, delete own profiles (enforced by RLS)
--- anon: select only (RLS enforces 0 rows on raw table; public view/RPC handles public access)
+-- anon: NO access to raw table (public uses public_business_profiles view or get_public_profile RPC)
 -- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.business_profiles FROM PUBLIC, anon;
 GRANT ALL ON TABLE public.business_profiles TO service_role;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.business_profiles TO authenticated;
-GRANT SELECT ON TABLE public.business_profiles TO anon;
 
 -- -----------------------------------------------------------------------------
--- 5.3: public.public_business_profiles (View)
+-- 6.3: public.public_business_profiles (View)
 -- Safe projection view available to all clients
 -- -----------------------------------------------------------------------------
 GRANT ALL ON TABLE public.public_business_profiles TO service_role;
 GRANT SELECT ON TABLE public.public_business_profiles TO anon, authenticated;
 
 -- -----------------------------------------------------------------------------
--- 5.4: public.orders
+-- 6.4: public.orders
 -- service_role: full control
--- authenticated: select own orders, insert new orders, update proof approval
--- anon: insert orders (guest checkout) and select (strictly constrained by RLS)
+-- authenticated: select own orders, insert own orders, update proof approval
+-- anon: NO access (guest checkout strictly routed through submit_guest_order RPC)
 -- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.orders FROM PUBLIC, anon;
 GRANT ALL ON TABLE public.orders TO service_role;
 GRANT SELECT, INSERT, UPDATE ON TABLE public.orders TO authenticated;
-GRANT SELECT, INSERT ON TABLE public.orders TO anon;
 
 -- -----------------------------------------------------------------------------
--- 5.5: public.nfc_cards
+-- 6.5: public.nfc_cards
 -- service_role: full control
--- authenticated: select own nfc_cards (enforced by RLS)
--- anon: select only (RLS returns 0 rows; public uses resolve_nfc_card RPC)
+-- authenticated: select own provisioned cards (enforced by RLS)
+-- anon: NO access (public tap resolution strictly routed through resolve_nfc_card RPC)
 -- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.nfc_cards FROM PUBLIC, anon;
 GRANT ALL ON TABLE public.nfc_cards TO service_role;
 GRANT SELECT ON TABLE public.nfc_cards TO authenticated;
-GRANT SELECT ON TABLE public.nfc_cards TO anon;
 
 -- -----------------------------------------------------------------------------
--- 5.6: public.leads
+-- 6.6: public.leads
 -- service_role: full control
 -- authenticated: select and delete own leads, submit inquiries
--- anon: insert inquiries and select (strictly constrained by RLS)
+-- anon: NO access (inquiries strictly routed through submit_public_lead RPC)
 -- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.leads FROM PUBLIC, anon;
 GRANT ALL ON TABLE public.leads TO service_role;
 GRANT SELECT, INSERT, DELETE ON TABLE public.leads TO authenticated;
-GRANT SELECT, INSERT ON TABLE public.leads TO anon;
 
 -- -----------------------------------------------------------------------------
--- 5.7: public.bank_transfers
+-- 6.7: public.bank_transfers
 -- service_role: full control
 -- authenticated: select own transfers, submit renewal transfers (enforced by RLS)
--- anon: select only (RLS returns 0 rows)
+-- anon: NO access
 -- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.bank_transfers FROM PUBLIC, anon;
 GRANT ALL ON TABLE public.bank_transfers TO service_role;
 GRANT SELECT, INSERT ON TABLE public.bank_transfers TO authenticated;
-GRANT SELECT ON TABLE public.bank_transfers TO anon;
 
 -- -----------------------------------------------------------------------------
--- 5.8: public.analytics_events & public.profile_analytics_summary
+-- 6.8: public.analytics_events & public.profile_analytics_summary
 -- service_role: full control
 -- authenticated: insert events, select own profile summary
--- anon: insert events, select summary (RLS returns 0 rows)
+-- anon: insert events only (no access to summary)
 -- -----------------------------------------------------------------------------
 GRANT ALL ON TABLE public.analytics_events TO service_role;
 GRANT INSERT ON TABLE public.analytics_events TO authenticated, anon;
 
+REVOKE ALL ON TABLE public.profile_analytics_summary FROM PUBLIC, anon;
 GRANT ALL ON TABLE public.profile_analytics_summary TO service_role;
 GRANT SELECT ON TABLE public.profile_analytics_summary TO authenticated;
-GRANT SELECT ON TABLE public.profile_analytics_summary TO anon;
 
 -- -----------------------------------------------------------------------------
--- 5.9: public.system_settings
+-- 6.9: public.system_settings
 -- service_role: full control
 -- authenticated: select (read prices), update (restricted to founder admin via RLS)
 -- anon: select only (read launch pricing)
 -- -----------------------------------------------------------------------------
+REVOKE ALL ON TABLE public.system_settings FROM PUBLIC;
 GRANT ALL ON TABLE public.system_settings TO service_role;
 GRANT SELECT, UPDATE ON TABLE public.system_settings TO authenticated;
 GRANT SELECT ON TABLE public.system_settings TO anon;
 
 -- =============================================================================
--- 6. SEQUENCES & DEFAULT PRIVILEGES
+-- 7. SEQUENCES & DEFAULT PRIVILEGES
 -- =============================================================================
 
 -- Sequences in public schema
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
 -- Routines in public schema
 GRANT ALL ON ALL ROUTINES IN SCHEMA public TO service_role;
