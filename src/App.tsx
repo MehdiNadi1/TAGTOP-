@@ -382,8 +382,9 @@ export default function App() {
     setCurrentView('marketing');
   };
 
-  const handleApproveProof = (orderId: string) => {
-    dataAdapter.approveProof(orderId).then(() => {
+  const handleApproveProof = async (orderId: string) => {
+    try {
+      await dataAdapter.approveProof(orderId);
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
@@ -391,11 +392,15 @@ export default function App() {
             : o
         )
       );
-    }).catch(console.error);
+    } catch (err) {
+      console.error('[TAGTOP App] Proof approval failed:', err);
+      throw err;
+    }
   };
 
-  const handleRequestProofChange = (orderId: string, reason: string) => {
-    dataAdapter.requestProofChange(orderId, reason).then(() => {
+  const handleRequestProofChange = async (orderId: string, reason: string) => {
+    try {
+      await dataAdapter.requestProofChange(orderId, reason);
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
@@ -408,8 +413,10 @@ export default function App() {
             : o
         )
       );
-      alert(translations[currentLanguage].app.proofModificationSentAlert);
-    }).catch(console.error);
+    } catch (err) {
+      console.error('[TAGTOP App] Proof modification request failed:', err);
+      throw err;
+    }
   };
 
   const handleSubmitRenewalTransfer = async (transfer: BankTransferRenewal): Promise<BankTransferRenewal> => {

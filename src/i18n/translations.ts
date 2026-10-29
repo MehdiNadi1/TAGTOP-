@@ -537,6 +537,52 @@ export interface Translations {
     orderStatusLinked: string;
     orderStatusShipped: string;
     orderStatusDelivered: string;
+    catalogTitle: string;
+    catalogSubtitle: string;
+    addProductBtn: string;
+    editProductBtn: string;
+    deleteProductBtn: string;
+    productNameLabel: string;
+    productDescLabel: string;
+    productPriceLabel: string;
+    productPricePlaceholder: string;
+    productImageUrlLabel: string;
+    productImageUrlPlaceholder: string;
+    productCategoryLabel: string;
+    deleteProductConfirm: string;
+    moveUp: string;
+    moveDown: string;
+    emptyCatalogMessage: string;
+    saveProductBtn: string;
+    cancelBtn: string;
+    productValidationNameRequired: string;
+    productValidationPriceInvalid: string;
+    productValidationUrlInvalid: string;
+    artworkProofTitle: string;
+    artworkProofLoading: string;
+    artworkProofEmpty: string;
+    artworkProofInvalidUrl: string;
+    artworkProofOpen: string;
+    artworkProofZoom: string;
+    artworkProofDownload: string;
+    artworkProofCloseZoom: string;
+    artworkProofPdfNotice: string;
+    proofApprovalDisabledNoProof: string;
+    confirmProofApprovalTitle: string;
+    confirmProofApprovalDesc: string;
+    confirmProofApprovalBtn: string;
+    revisionModalTitle: string;
+    revisionModalSubtitle: string;
+    revisionCategoryLabel: string;
+    revisionCategoryLayout: string;
+    revisionCategoryTypography: string;
+    revisionCategoryLogo: string;
+    revisionCategoryColor: string;
+    revisionCategoryOther: string;
+    revisionNotesLabel: string;
+    revisionNotesPlaceholder: string;
+    revisionNotesRequired: string;
+    submitRevisionBtn: string;
   };
   founderDashboard: {
     adminBadge: string;
@@ -644,6 +690,18 @@ export interface Translations {
     errorLoadingData: string;
     retryBtn: string;
     mutationError: string;
+    rejectTransferModalTitle: string;
+    rejectTransferModalSubtitle: string;
+    rejectTransferIdentity: string;
+    rejectTransferCustomer: string;
+    rejectTransferAmount: string;
+    rejectTransferProfile: string;
+    rejectTransferReasonLabel: string;
+    rejectTransferReasonPlaceholder: string;
+    rejectTransferReasonRequired: string;
+    rejectTransferConfirmCheck: string;
+    rejectTransferConfirmBtn: string;
+    rejectTransferCancelBtn: string;
   };
   app: {
     proofModificationSentAlert: string;
@@ -1253,6 +1311,52 @@ export const translations: Record<Language, Translations> = {
       orderStatusLinked: 'Puce associée',
       orderStatusShipped: 'Expédiée',
       orderStatusDelivered: 'Livrée',
+      catalogTitle: 'Catalogue Produits & Services',
+      catalogSubtitle: 'Présentez vos réalisations, prestations et produits sur votre profil public.',
+      addProductBtn: 'Ajouter un produit / service',
+      editProductBtn: 'Modifier',
+      deleteProductBtn: 'Supprimer',
+      productNameLabel: 'Nom de la prestation ou produit',
+      productDescLabel: 'Description',
+      productPriceLabel: 'Prix indicatif (MAD, optionnel)',
+      productPricePlaceholder: 'ex: 450 (laisser vide pour Sur devis)',
+      productImageUrlLabel: 'URL de l’image ou visuel (optionnel)',
+      productImageUrlPlaceholder: 'https://...',
+      productCategoryLabel: 'Catégorie (optionnel)',
+      deleteProductConfirm: 'Êtes-vous sûr de vouloir supprimer cet élément de votre catalogue ?',
+      moveUp: 'Monter',
+      moveDown: 'Descendre',
+      emptyCatalogMessage: 'Aucun produit ou service ajouté pour le moment. Enrichissez votre profil pour convertir davantage de contacts !',
+      saveProductBtn: 'Enregistrer le produit',
+      cancelBtn: 'Annuler',
+      productValidationNameRequired: 'Le nom du produit ou service est requis (1 à 100 caractères).',
+      productValidationPriceInvalid: 'Le prix doit être un nombre positif supérieur ou égal à zéro.',
+      productValidationUrlInvalid: 'L’URL de l’image doit être une adresse web valide débutant par http:// ou https://.',
+      artworkProofTitle: 'Bon à Tirer (BAT) d’impression',
+      artworkProofLoading: 'Chargement de la maquette...',
+      artworkProofEmpty: 'Aucune maquette n’a encore été rattachée par le fondateur. Dès sa préparation, elle apparaîtra ici pour examen.',
+      artworkProofInvalidUrl: 'L’adresse de la maquette n’est pas valide ou sécurisée. Veuillez contacter le support fondateur.',
+      artworkProofOpen: 'Ouvrir en plein écran',
+      artworkProofZoom: 'Agrandir la maquette',
+      artworkProofDownload: 'Télécharger le fichier',
+      artworkProofCloseZoom: 'Fermer l’aperçu',
+      artworkProofPdfNotice: 'Ce bon à tirer est un document PDF haute définition.',
+      proofApprovalDisabledNoProof: 'L’approbation requiert la mise en ligne préalable d’une maquette par le fondateur.',
+      confirmProofApprovalTitle: 'Confirmer la validation du Bon à Tirer',
+      confirmProofApprovalDesc: 'En validant cette maquette, vous autorisez TAGTOP à lancer l’impression et l’encodage physique de votre carte NFC.',
+      confirmProofApprovalBtn: 'Confirmer et lancer la fabrication',
+      revisionModalTitle: 'Demander des modifications sur le Bon à Tirer',
+      revisionModalSubtitle: 'Détaillez vos remarques pour permettre au fondateur d’ajuster votre maquette.',
+      revisionCategoryLabel: 'Catégorie de révision',
+      revisionCategoryLayout: 'Mise en page',
+      revisionCategoryTypography: 'Typographie & Textes',
+      revisionCategoryLogo: 'Logo & Graphismes',
+      revisionCategoryColor: 'Couleurs & Teintes',
+      revisionCategoryOther: 'Autre remarque',
+      revisionNotesLabel: 'Précisions et instructions de modification',
+      revisionNotesPlaceholder: 'Expliquez précisément ce que vous souhaitez changer (ex: centrer le logo, corriger le numéro, ajuster la taille du texte)...',
+      revisionNotesRequired: 'Veuillez saisir vos remarques ou modifications souhaitées (au moins 5 caractères).',
+      submitRevisionBtn: 'Envoyer la demande de révision',
     },
     founderDashboard: {
       adminBadge: 'Accès Administrateur Unique',
@@ -1360,6 +1464,18 @@ export const translations: Record<Language, Translations> = {
       errorLoadingData: 'Erreur lors du chargement des données administratives :',
       retryBtn: 'Réessayer',
       mutationError: 'Échec de l’opération administrative :',
+      rejectTransferModalTitle: 'Rejeter le virement bancaire',
+      rejectTransferModalSubtitle: 'Indiquez le motif précis de non-validation pour le client.',
+      rejectTransferIdentity: 'Référence du virement :',
+      rejectTransferCustomer: 'Client :',
+      rejectTransferAmount: 'Montant réclamé :',
+      rejectTransferProfile: 'Profil associé :',
+      rejectTransferReasonLabel: 'Motif de rejet (obligatoire)',
+      rejectTransferReasonPlaceholder: 'ex: Référence de virement introuvable sur le relevé CIH Bank, montant non concordant...',
+      rejectTransferReasonRequired: 'Le motif de rejet est obligatoire pour informer le client.',
+      rejectTransferConfirmCheck: 'Je confirme le rejet de ce virement après vérification bancaire.',
+      rejectTransferConfirmBtn: 'Confirmer le rejet',
+      rejectTransferCancelBtn: 'Annuler',
     },
     app: {
       proofModificationSentAlert: 'Vos remarques ont été transmises au fondateur pour modification du BAT.',
@@ -1967,6 +2083,52 @@ export const translations: Record<Language, Translations> = {
       orderStatusLinked: 'تم ربط الشريحة',
       orderStatusShipped: 'تم الشحن',
       orderStatusDelivered: 'تم التسليم',
+      catalogTitle: 'كتالوج المنتجات والخدمات',
+      catalogSubtitle: 'أبرز خدماتك ومنتجاتك وأعمالك على ملفك التعريفي العام.',
+      addProductBtn: 'إضافة منتج / خدمة',
+      editProductBtn: 'تعديل',
+      deleteProductBtn: 'حذف',
+      productNameLabel: 'اسم الخدمة أو المنتج',
+      productDescLabel: 'الوصف',
+      productPriceLabel: 'السعر التقديري (بالدرهم، اختياري)',
+      productPricePlaceholder: 'مثال: 450 (اتركه فارغاً لطلب عرض أسعار)',
+      productImageUrlLabel: 'رابط الصورة أو الشعار (اختياري)',
+      productImageUrlPlaceholder: 'https://...',
+      productCategoryLabel: 'الفئة (اختياري)',
+      deleteProductConfirm: 'هل أنت متأكد من رغبتك في حذف هذا العنصر من الكتالوج؟',
+      moveUp: 'تحريك لأعلى',
+      moveDown: 'تحريك لأسفل',
+      emptyCatalogMessage: 'لم تتم إضافة أي خدمات أو منتجات بعد. أضف عروضك لزيادة ثقة وتفاعل العملاء!',
+      saveProductBtn: 'حفظ العنصر',
+      cancelBtn: 'إلغاء',
+      productValidationNameRequired: 'اسم المنتج أو الخدمة مطلوب (من 1 إلى 100 حرف).',
+      productValidationPriceInvalid: 'يجب أن يكون السعر رقماً موجباً أكبر من أو يساوي الصفر.',
+      productValidationUrlInvalid: 'يجب أن يكون رابط الصورة عنوان ويب صحيحاً يبدأ بـ http:// أو https://.',
+      artworkProofTitle: 'نموذج الطباعة والموافقة (BAT)',
+      artworkProofLoading: 'جارٍ تحميل نموذج الطباعة...',
+      artworkProofEmpty: 'لم يتم إرفاق نموذج الطباعة من قبل المؤسس بعد. بمجرد إعداده، سيظهر هنا للمراجعة والاعتماد.',
+      artworkProofInvalidUrl: 'رابط نموذج الطباعة غير صالح أو غير آمن. يرجى التواصل مع دعم المؤسس.',
+      artworkProofOpen: 'فتح في نافذة كاملة',
+      artworkProofZoom: 'تكبير النموذج',
+      artworkProofDownload: 'تحميل الملف',
+      artworkProofCloseZoom: 'إغلاق المعاينة',
+      artworkProofPdfNotice: 'هذا النموذج عبارة عن وثيقة PDF عالية الدقة.',
+      proofApprovalDisabledNoProof: 'يتطلب اعتماد النموذج رفعه أولاً من قبل المؤسس.',
+      confirmProofApprovalTitle: 'تأكيد الموافقة على مسودة الطباعة',
+      confirmProofApprovalDesc: 'بموافقتك على هذا النموذج، فإنك تأذن لـ TAGTOP ببدء الطباعة وبرمجة شريحة NFC الخاصة بك فوراً.',
+      confirmProofApprovalBtn: 'تأكيد وبدء التصنيع',
+      revisionModalTitle: 'طلب تعديلات على مسودة الطباعة',
+      revisionModalSubtitle: 'يرجى تدوين ملاحظاتك بدقة لتمكين المؤسس من تعديل مسودة الطباعة.',
+      revisionCategoryLabel: 'فئة التعديل',
+      revisionCategoryLayout: 'تنسيق الصفحة والتوزيع',
+      revisionCategoryTypography: 'الخطوط والنصوص',
+      revisionCategoryLogo: 'الشعار والرسوم',
+      revisionCategoryColor: 'الألوان والدرجات',
+      revisionCategoryOther: 'ملاحظة أخرى',
+      revisionNotesLabel: 'تفاصيل وملاحظات التعديل المطلوبة',
+      revisionNotesPlaceholder: 'اشرح بالتفصيل ما ترغب بتعديله (مثال: محاذاة الشعار، تصحيح رقم الهاتف، تكبير النص)...',
+      revisionNotesRequired: 'يرجى كتابة ملاحظاتك أو التعديلات المطلوبة (5 أحرف على الأقل).',
+      submitRevisionBtn: 'إرسال طلب التعديل',
     },
     founderDashboard: {
       adminBadge: 'دخول الإدارة الموحد',
@@ -2074,6 +2236,18 @@ export const translations: Record<Language, Translations> = {
       errorLoadingData: 'حدث خطأ أثناء تحميل البيانات الإدارية:',
       retryBtn: 'إعادة المحاولة',
       mutationError: 'فشلت العملية الإدارية:',
+      rejectTransferModalTitle: 'رفض التحويل البنكي',
+      rejectTransferModalSubtitle: 'حدد السبب الدقيق لعدم قبول التحويل لإخطار الزبون.',
+      rejectTransferIdentity: 'مرجع التحويل :',
+      rejectTransferCustomer: 'الزبون :',
+      rejectTransferAmount: 'المبلغ المطالب به :',
+      rejectTransferProfile: 'الملف المرتبط :',
+      rejectTransferReasonLabel: 'سبب الرفض (إلزامي)',
+      rejectTransferReasonPlaceholder: 'مثال: رقم التحويل غير موجود في كشف حساب CIH Bank، المبلغ غير متطابق...',
+      rejectTransferReasonRequired: 'سبب الرفض إلزامي لإعلام الزبون.',
+      rejectTransferConfirmCheck: 'أؤكد رفض هذا التحويل بعد التحقق من الحساب البنكي.',
+      rejectTransferConfirmBtn: 'تأكيد الرفض',
+      rejectTransferCancelBtn: 'إلغاء',
     },
     app: {
       proofModificationSentAlert: 'تم إرسال ملاحظاتك إلى المؤسس لتعديل النموذج الأولي.',
@@ -2681,6 +2855,52 @@ export const translations: Record<Language, Translations> = {
       orderStatusLinked: 'Chip Linked',
       orderStatusShipped: 'Shipped',
       orderStatusDelivered: 'Delivered',
+      catalogTitle: 'Products & Services Catalog',
+      catalogSubtitle: 'Showcase your portfolio, offerings, and products on your public profile.',
+      addProductBtn: 'Add product / service',
+      editProductBtn: 'Edit',
+      deleteProductBtn: 'Delete',
+      productNameLabel: 'Product or Service Name',
+      productDescLabel: 'Description',
+      productPriceLabel: 'Indicative Price (MAD, optional)',
+      productPricePlaceholder: 'e.g. 450 (leave blank for On quote)',
+      productImageUrlLabel: 'Image or Visual URL (optional)',
+      productImageUrlPlaceholder: 'https://...',
+      productCategoryLabel: 'Category (optional)',
+      deleteProductConfirm: 'Are you sure you want to delete this item from your catalog?',
+      moveUp: 'Move up',
+      moveDown: 'Move down',
+      emptyCatalogMessage: 'No products or services added yet. Showcase your work to convert more profile visitors!',
+      saveProductBtn: 'Save Item',
+      cancelBtn: 'Cancel',
+      productValidationNameRequired: 'Product or service name is required (1 to 100 characters).',
+      productValidationPriceInvalid: 'Price must be a valid positive number or zero.',
+      productValidationUrlInvalid: 'Image URL must be a valid web address starting with http:// or https://.',
+      artworkProofTitle: 'Artwork Proof (BAT) for Printing',
+      artworkProofLoading: 'Loading design proof...',
+      artworkProofEmpty: 'No layout proof has been uploaded by the founder yet. Once prepared, it will appear here for your review.',
+      artworkProofInvalidUrl: 'Artwork proof URL is invalid or insecure. Please contact founder support.',
+      artworkProofOpen: 'Open in Full Screen',
+      artworkProofZoom: 'Zoom Proof',
+      artworkProofDownload: 'Download File',
+      artworkProofCloseZoom: 'Close Preview',
+      artworkProofPdfNotice: 'This artwork proof is a high-definition PDF document.',
+      proofApprovalDisabledNoProof: 'Approval requires a layout proof uploaded by the founder.',
+      confirmProofApprovalTitle: 'Confirm Artwork Proof Approval',
+      confirmProofApprovalDesc: 'By approving this design, you authorize TAGTOP to initiate physical printing and NFC encoding.',
+      confirmProofApprovalBtn: 'Confirm and Start Production',
+      revisionModalTitle: 'Request Proof Modifications',
+      revisionModalSubtitle: 'Provide detailed feedback to help the founder adjust your artwork proof.',
+      revisionCategoryLabel: 'Revision Category',
+      revisionCategoryLayout: 'Layout & Positioning',
+      revisionCategoryTypography: 'Typography & Text',
+      revisionCategoryLogo: 'Logo & Artwork',
+      revisionCategoryColor: 'Colors & Tones',
+      revisionCategoryOther: 'Other Remark',
+      revisionNotesLabel: 'Revision Notes & Instructions',
+      revisionNotesPlaceholder: 'Explain exactly what needs modification (e.g., center the logo, adjust font size, fix phone number)...',
+      revisionNotesRequired: 'Please provide revision notes explaining what needs modification (at least 5 characters).',
+      submitRevisionBtn: 'Submit Revision Request',
     },
     founderDashboard: {
       adminBadge: 'Single Administrator Access',
@@ -2788,6 +3008,18 @@ export const translations: Record<Language, Translations> = {
       errorLoadingData: 'Error loading administrative data:',
       retryBtn: 'Retry',
       mutationError: 'Administrative operation failed:',
+      rejectTransferModalTitle: 'Reject Bank Transfer',
+      rejectTransferModalSubtitle: 'Specify the exact reason for rejection to notify the client.',
+      rejectTransferIdentity: 'Transfer Reference:',
+      rejectTransferCustomer: 'Customer:',
+      rejectTransferAmount: 'Claimed Amount:',
+      rejectTransferProfile: 'Linked Profile:',
+      rejectTransferReasonLabel: 'Rejection Reason (Required)',
+      rejectTransferReasonPlaceholder: 'e.g. Receipt reference not found on CIH Bank statement, amount mismatch...',
+      rejectTransferReasonRequired: 'A rejection reason is required to notify the customer.',
+      rejectTransferConfirmCheck: 'I confirm the rejection of this bank transfer after verification.',
+      rejectTransferConfirmBtn: 'Confirm Rejection',
+      rejectTransferCancelBtn: 'Cancel',
     },
     app: {
       proofModificationSentAlert: 'Your remarks have been sent to the founder for proof revisions.',

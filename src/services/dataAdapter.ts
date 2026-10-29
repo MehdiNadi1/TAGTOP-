@@ -279,8 +279,12 @@ export const dataAdapter = {
    * In Supabase mode, executes on server and throws on failure.
    */
   async requestProofChange(orderId: string, reason: string): Promise<void> {
+    if (!reason || reason.trim().length === 0) {
+      throw new Error('A modification reason must be provided when requesting proof changes');
+    }
+
     if (isSupabaseConfigured()) {
-      await orderService.requestProofChange(orderId, reason);
+      await orderService.requestProofChange(orderId, reason.trim());
       return;
     }
 
@@ -288,7 +292,7 @@ export const dataAdapter = {
     const current = getStoredOrders();
     const updated = current.map((o) =>
       o.id === orderId
-        ? { ...o, proofApproved: false, proofRejectionReason: reason, orderStatus: 'artwork_review' as const }
+        ? { ...o, proofApproved: false, proofRejectionReason: reason.trim(), orderStatus: 'artwork_review' as const }
         : o
     );
     saveOrders(updated);
@@ -451,8 +455,12 @@ export const dataAdapter = {
    * Rejects a bank transfer with notes via RPC.
    */
   async founderRejectTransfer(transferId: string, reason: string): Promise<void> {
+    if (!reason || reason.trim().length === 0) {
+      throw new Error('Rejection reason is required');
+    }
+
     if (isSupabaseConfigured()) {
-      await adminService.rejectBankTransfer(transferId, reason);
+      await adminService.rejectBankTransfer(transferId, reason.trim());
       return;
     }
 
@@ -460,7 +468,7 @@ export const dataAdapter = {
     const transfers = getStoredTransfers();
     const nextTransfers = transfers.map((t) =>
       t.id === transferId
-        ? { ...t, status: 'rejected' as const, founderNotes: reason }
+        ? { ...t, status: 'rejected' as const, founderNotes: reason.trim() }
         : t
     );
     saveTransfers(nextTransfers);

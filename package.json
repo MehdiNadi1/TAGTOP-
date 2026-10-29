@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx src/services/backendSecurity.test.ts && tsx src/utils/pricingAndAccess.test.ts && tsx src/services/storage.test.ts && tsx src/services/backend.test.ts && tsx src/services/checkoutConfirmation.test.ts && tsx src/services/subscriptionRenewal.test.ts && tsx src/services/customerProfileExperience.test.ts",
+    "test": "tsx src/services/backendSecurity.test.ts && tsx src/utils/pricingAndAccess.test.ts && tsx src/services/storage.test.ts && tsx src/services/backend.test.ts && tsx src/services/checkoutConfirmation.test.ts && tsx src/services/subscriptionRenewal.test.ts && tsx src/services/customerProfileExperience.test.ts && tsx src/services/productsAndProofsExperience.test.ts",
     "test:security": "tsx src/services/backendSecurity.test.ts",
     "test:supabase-integration": "tsx scripts/test-supabase-integration.ts"
   },

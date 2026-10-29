@@ -43,6 +43,8 @@ import { CreateProfileModal } from '../modals/CreateProfileModal';
 import { dataAdapter } from '../../services/dataAdapter';
 import { ProfileAnalyticsSummary } from '../../services/backend/profileService';
 import { isValidExternalUrl, sanitizeExternalUrl } from '../../utils/pricingAndAccess';
+import { ProductsServicesEditor } from './ProductsServicesEditor';
+import { ArtworkProofViewer } from './ArtworkProofViewer';
 
 const TikTokIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg className={className} viewBox="0 0 24 24" fill="currentColor">
@@ -952,6 +954,19 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       </div>
                     </div>
 
+                    {/* Products & Services Catalog Editor */}
+                    <ProductsServicesEditor
+                      products={editorData.products || []}
+                      currentLanguage={currentLanguage}
+                      disabled={isSavingProfile}
+                      onChange={(updatedProducts) => {
+                        setEditorData({
+                          ...editorData,
+                          products: updatedProducts,
+                        });
+                      }}
+                    />
+
                     {/* Digital Branding Notice */}
                     <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-200 text-[11px] text-neutral-600">
                       <strong>{t.customerDashboard.brandingNoticeTitle}</strong> {t.customerDashboard.brandingNoticeDesc}
@@ -1050,35 +1065,12 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
                         {/* Proof Approval Card (BAT) */}
                         {ord.orderStatus === 'artwork_review' && (
-                          <div className="p-4 bg-white rounded-xl border border-amber-300 space-y-3">
-                            <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                              <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
-                              <span>{t.customerDashboard.proofReadyTitle}</span>
-                            </div>
-                            <p className="text-xs text-slate-600">
-                              {t.customerDashboard.proofReadyDesc}
-                            </p>
-                            
-                            <div className="flex items-center gap-3">
-                              <button
-                                type="button"
-                                onClick={() => onApproveProof(ord.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow-xs"
-                              >
-                                {t.customerDashboard.approveProofBtn}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const reason = prompt(t.customerDashboard.proofRemarksPrompt);
-                                  if (reason) onRequestProofChange(ord.id, reason);
-                                }}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs px-3.5 py-2 rounded-lg"
-                              >
-                                {t.customerDashboard.requestProofChangeBtn}
-                              </button>
-                            </div>
-                          </div>
+                          <ArtworkProofViewer
+                            order={ord}
+                            currentLanguage={currentLanguage}
+                            onApproveProof={onApproveProof}
+                            onRequestProofChange={onRequestProofChange}
+                          />
                         )}
 
                         <div className="flex items-center justify-between text-xs text-slate-500 pt-2 border-t border-neutral-200">

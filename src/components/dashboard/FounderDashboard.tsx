@@ -28,6 +28,7 @@ import {
   importDataSnapshot,
 } from '../../services/storage';
 import { AuthUserProfile } from '../../services/backend/authService';
+import { TransferRejectionModal } from './TransferRejectionModal';
 
 interface FounderDashboardProps {
   currentLanguage: Language;
@@ -76,6 +77,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
   // Settings form state
   const [settingsForm, setSettingsForm] = useState<SystemSettings>(settings);
   const [settingsSavedToast, setSettingsSavedToast] = useState(false);
+  const [rejectionTargetTransfer, setRejectionTargetTransfer] = useState<BankTransferRenewal | null>(null);
 
   const pendingProofsCount = orders.filter((o) => o.orderStatus === 'artwork_review').length;
   const pendingTransfersCount = transfers.filter((t) => t.status === 'pending').length;
@@ -680,10 +682,7 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
                             <button
                               type="button"
                               disabled={actionLoadingId === trn.id}
-                              onClick={() => {
-                                const reason = prompt(t.founderDashboard.rejectPrompt);
-                                if (reason) handleReject(trn.id, reason);
-                              }}
+                              onClick={() => setRejectionTargetTransfer(trn)}
                               className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs px-3.5 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
                             >
                               {t.founderDashboard.reject}
@@ -916,6 +915,17 @@ export const FounderDashboard: React.FC<FounderDashboardProps> = ({
           </main>
 
         </div>
+
+        {/* Accessible Transfer Rejection Confirmation Modal */}
+        <TransferRejectionModal
+          isOpen={Boolean(rejectionTargetTransfer)}
+          transfer={rejectionTargetTransfer}
+          currentLanguage={currentLanguage}
+          onClose={() => setRejectionTargetTransfer(null)}
+          onConfirmReject={async (transferId, reason) => {
+            await handleReject(transferId, reason);
+          }}
+        />
 
       </div>
     </div>

@@ -462,18 +462,43 @@ export const PublicProfileView: React.FC<PublicProfileViewProps> = ({
                 {profile.products.map((item) => (
                   <div
                     key={item.id}
-                    className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 hover:border-amber-300 transition-colors"
+                    className="p-3.5 rounded-2xl bg-neutral-50 border border-neutral-200/80 hover:border-amber-300 transition-colors flex items-start gap-3"
                   >
-                    <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <h4 className="text-xs font-bold text-neutral-900">{item.name}</h4>
-                        <p className="text-[11px] text-neutral-600 mt-0.5 leading-relaxed">
+                    {item.imageUrl && isValidExternalUrl(item.imageUrl) && (
+                      <img
+                        src={item.imageUrl}
+                        alt={item.name}
+                        className="w-14 h-14 rounded-xl object-cover border border-neutral-200 shrink-0 bg-white"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start gap-2">
+                        <div>
+                          <h4 className="text-xs font-bold text-neutral-900 leading-snug">{item.name}</h4>
+                          {item.category && (
+                            <span className="inline-block text-[10px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded font-medium mt-0.5">
+                              {item.category}
+                            </span>
+                          )}
+                        </div>
+                        {item.priceMAD !== undefined && item.priceMAD > 0 ? (
+                          <span className="text-xs font-extrabold text-neutral-950 whitespace-nowrap tabular-nums shrink-0">
+                            {item.priceMAD} {t.common.currency}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold text-neutral-500 whitespace-nowrap shrink-0">
+                            {t.configurator.onQuote}
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <p className="text-[11px] text-neutral-600 mt-1 leading-relaxed break-words">
                           {item.description}
                         </p>
-                      </div>
-                      <span className="text-xs font-extrabold text-neutral-950 whitespace-nowrap tabular-nums">
-                        {item.priceMAD} {t.common.currency}
-                      </span>
+                      )}
                     </div>
                   </div>
                 ))}
