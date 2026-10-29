@@ -51,6 +51,13 @@ test('dataAdapter.getPublicProfile retrieves business profile by handle or ID', 
   const profileById = await dataAdapter.getPublicProfile('prof-casablanca', 'fr');
   assert.ok(profileById);
   assert.equal(profileById.handle, 'yassine-bennani');
+
+  // Regression: Nonexistent handles return null and do not substitute a demo profile
+  const missingHandle = await dataAdapter.getPublicProfile('tagtop-demo-01', 'fr');
+  assert.equal(missingHandle, null, 'tagtop-demo-01 must return null');
+
+  const nonexistentHandle = await dataAdapter.getPublicProfile('non-existent-handle-404', 'fr');
+  assert.equal(nonexistentHandle, null, 'non-existent handle must return null');
 });
 
 test('dataAdapter.recordProfileEvent safely logs interactions and increments counters', async () => {

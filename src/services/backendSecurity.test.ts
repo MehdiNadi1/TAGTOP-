@@ -364,3 +364,174 @@ test('Regression: Guest checkout RPC contract enforces server-side pricing and n
     /Pro and Enterprise packages require quote approval/
   );
 });
+
+// =============================================================================
+// 6. PUBLIC PROFILE PRIVACY & ROUTE FALLBACK PREVENTION REGRESSION TESTS
+// =============================================================================
+test('Regression: Nonexistent handles (#p/:handle) return null and NEVER substitute demo profiles', async () => {
+  // Query nonexistent handles that previously triggered fallback to Yassine Bennani
+  const nonexistent1 = await dataAdapter.getPublicProfile('tagtop-demo-01', 'fr');
+  assert.equal(nonexistent1, null, 'Nonexistent handle tagtop-demo-01 must resolve strictly to null');
+
+  const nonexistent2 = await dataAdapter.getPublicProfile('random-ghost-handle-999', 'fr');
+  assert.equal(nonexistent2, null, 'Arbitrary missing handle must resolve strictly to null');
+
+  const nonexistentEmpty = await dataAdapter.getPublicProfile('', 'fr');
+  assert.equal(nonexistentEmpty, null, 'Empty handle must resolve strictly to null');
+});
+
+test('Regression: Private preview and order pending profiles return null to anonymous public visitors', async () => {
+  // 1. Create a profile in private preview mode
+  const privateProfile = await dataAdapter.createProfile({
+    handle: `secret-preview-${Date.now()}`,
+    displayName: 'Private Business Founder',
+    company: 'Secret Ventures Casablanca',
+  });
+  assert.equal(privateProfile.accessState, 'private_preview');
+
+  // Anonymous public visitor attempt to query private preview
+  const publicResult = await dataAdapter.getPublicProfile(privateProfile.handle, 'fr');
+  assert.equal(
+    publicResult,
+    null,
+    'Private preview profiles must return null to public visitors to protect customer privacy'
+  );
+
+  // 2. Simulating the Supabase get_public_profile RPC contract
+  const simulateGetPublicProfileRPC = (
+    profile: { access_state: string; owner_id: string; display_name: string },
+    visitorAuthUid: string | null,
+    isFounderAdmin: boolean
+  ) => {
+    const isOwner = visitorAuthUid !== null && profile.owner_id === visitorAuthUid;
+    const isAdmin = isFounderAdmin;
+
+    if (['private_preview', 'order_pending'].includes(profile.access_state) && !(isOwner || isAdmin)) {
+      return null;
+    }
+
+    return {
+      display_name: profile.display_name,
+      access_state: profile.access_state,
+    };
+  };
+
+  // Anonymous visitor querying private_preview -> NULL
+  const anonView = simulateGetPublicProfileRPC(
+    { access_state: 'private_preview', owner_id: 'user-123', display_name: 'Dr. Test' },
+    null,
+    false
+  );
+  assert.equal(anonView, null, 'RPC must return null for anonymous visitor');
+
+  // Anonymous visitor querying order_pending -> NULL
+  const anonPendingView = simulateGetPublicProfileRPC(
+    { access_state: 'order_pending', owner_id: 'user-123', display_name: 'Dr. Test' },
+    null,
+    false
+  );
+  assert.equal(anonPendingView, null, 'RPC must return null for order_pending profile');
+
+  // Profile owner can view their own private preview
+  const ownerView = simulateGetPublicProfileRPC(
+    { access_state: 'private_preview', owner_id: 'user-123', display_name: 'Dr. Test' },
+    'user-123',
+    false
+  );
+  assert.ok(ownerView, 'Profile owner can view their private preview profile');
+
+  // Founder admin can view private preview
+  const adminView = simulateGetPublicProfileRPC(
+    { access_state: 'private_preview', owner_id: 'user-123', display_name: 'Dr. Test' },
+    'admin-999',
+    true
+  );
+  assert.ok(adminView, 'Founder admin can view private preview profile');
+});
+
+test('Regression: Invalid or unlinked NFC card taps (#c/:uid) resolve to null and never trigger fallback profiles', async () => {
+  // Test invalid NFC UIDs
+  const invalidUid1 = await dataAdapter.resolveNfcTap('00:00:00:00:00:00:00');
+  assert.equal(invalidUid1, null, 'Unknown UID must resolve to null');
+
+  const invalidUid2 = await dataAdapter.resolveNfcTap('NON-EXISTENT-NFC-UID');
+  assert.equal(invalidUid2, null, 'Nonexistent UID must resolve to null');
+
+  const emptyUid = await dataAdapter.resolveNfcTap('');
+  assert.equal(emptyUid, null, 'Empty UID must resolve to null');
+
+  // Simulating resolve_nfc_card RPC contract
+  const simulateResolveNfcCardRPC = (
+    registryItem: { uid: string; serial_number: string; linked_profile_id: string | null; is_active: boolean } | null
+  ) => {
+    if (!registryItem || !registryItem.is_active || !registryItem.linked_profile_id) {
+      return null;
+    }
+    return { linked_profile_id: registryItem.linked_profile_id };
+  };
+
+  assert.equal(simulateResolveNfcCardRPC(null), null);
+  assert.equal(
+    simulateResolveNfcCardRPC({ uid: '04:XX', serial_number: 'TAG-01', linked_profile_id: null, is_active: true }),
+    null,
+    'Unassigned card must return null'
+  );
+  assert.equal(
+    simulateResolveNfcCardRPC({ uid: '04:XX', serial_number: 'TAG-01', linked_profile_id: 'prof-123', is_active: false }),
+    null,
+    'Inactive card must return null'
+  );
+});
+
+test('Regression: Public profile view contract never substitutes a demo profile when RPC returns null', () => {
+  // Simulating the UI resolution logic in App.tsx
+  // Buggy version had: (loadedPublicProfile || resolvedPublicProfile) where resolvedPublicProfile defaulted to initialProfiles[0]
+  // Fixed version: loadedPublicProfile strictly; if null, render translated not-found state without fallback
+  const renderPublicProfileView = (loadedPublicProfile: BusinessProfile | null) => {
+    if (loadedPublicProfile) {
+      return { state: 'profile_rendered', displayName: loadedPublicProfile.displayName };
+    }
+    return { state: 'not_found_rendered', displayName: null };
+  };
+
+  // Case 1: RPC returns null for nonexistent / private profile
+  const resultWhenNull = renderPublicProfileView(null);
+  assert.equal(resultWhenNull.state, 'not_found_rendered');
+  assert.equal(resultWhenNull.displayName, null, 'Must NOT render any profile name when RPC returns null');
+
+  // Case 2: RPC returns an actual active profile
+  const activeProfileMock: BusinessProfile = {
+    id: 'prof-real-01',
+    ownerId: 'user-real',
+    ownerName: 'Salma El Fassi',
+    ownerEmail: 'salma@elfassi.ma',
+    handle: 'salma-elfassi',
+    displayName: 'Salma El Fassi',
+    jobTitle: 'Avocate au Barreau',
+    company: 'Cabinet El Fassi',
+    bio: 'Avocate d affaires',
+    city: 'Rabat',
+    address: 'Avenue Annakhil, Hay Riad',
+    avatarUrl: '',
+    logoUrl: '',
+    coverColor: '#000000',
+    templateId: 'executive',
+    accessState: 'active',
+    expiryDate: '2027-01-01',
+    phone: '+212537000000',
+    whatsapp: '+212661000000',
+    email: 'salma@elfassi.ma',
+    website: 'https://elfassi.ma',
+    socials: {},
+    products: [],
+    documents: [],
+    videos: [],
+    leadFields: [],
+    digitalTagtopBranding: true,
+    linkedCardCount: 1,
+  };
+
+  const resultWhenValid = renderPublicProfileView(activeProfileMock);
+  assert.equal(resultWhenValid.state, 'profile_rendered');
+  assert.equal(resultWhenValid.displayName, 'Salma El Fassi');
+});

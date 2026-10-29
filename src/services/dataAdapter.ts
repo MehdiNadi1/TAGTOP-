@@ -67,7 +67,12 @@ export const dataAdapter = {
 
     // Explicit Demo Mode Fallback
     const profiles = getStoredProfiles(lang);
-    return profiles.find((p) => p.handle === handleOrId || p.id === handleOrId) || null;
+    const matched = profiles.find((p) => p.handle === handleOrId || p.id === handleOrId);
+    if (!matched) return null;
+    if (matched.accessState === 'private_preview' || matched.accessState === 'order_pending') {
+      return null;
+    }
+    return matched;
   },
 
   /**

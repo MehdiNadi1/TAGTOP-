@@ -17,13 +17,6 @@ import {
   PackageTier,
 } from './types';
 import {
-  initialProfiles,
-  initialOrders,
-  initialNfcRegistry,
-  initialBankTransfers,
-  initialSettings,
-} from './data/mockData';
-import {
   getStoredProfiles,
   updateStoredProfile,
   getStoredOrders,
@@ -81,7 +74,6 @@ export default function App() {
   // Active platform view: marketing website, customer portal, founder console, or public live profile
   const [currentView, setCurrentView] = useState<AppView>('marketing');
   const [currentSubPage, setCurrentSubPage] = useState<MarketingSubPage>('home');
-  const [activeProfileId, setActiveProfileId] = useState<string>('prof-casablanca');
 
   // Authentication and Session State
   const [currentUser, setCurrentUser] = useState<AuthUserProfile | null>(null);
@@ -195,10 +187,10 @@ export default function App() {
       if (hash.startsWith('c/') || hash.startsWith('card/')) {
         const tagUid = hash.replace(/^(c|card)\//, '');
         setIsPublicProfileLoading(true);
+        setLoadedPublicProfile(null);
         setCurrentView('public-profile');
         dataAdapter.resolveNfcTap(tagUid).then(async (linkedId) => {
           if (linkedId) {
-            setActiveProfileId(linkedId);
             const pub = await dataAdapter.getPublicProfile(linkedId, currentLanguage);
             setLoadedPublicProfile(pub);
             if (pub) dataAdapter.recordProfileEvent(pub.id, 'tap');
@@ -217,11 +209,11 @@ export default function App() {
       if (hash.startsWith('p/')) {
         const handleOrId = hash.replace(/^p\//, '');
         setIsPublicProfileLoading(true);
+        setLoadedPublicProfile(null);
         setCurrentView('public-profile');
         dataAdapter.getPublicProfile(handleOrId, currentLanguage).then((pub) => {
           setLoadedPublicProfile(pub);
           if (pub) {
-            setActiveProfileId(pub.id);
             dataAdapter.recordProfileEvent(pub.id, 'tap');
           }
           setIsPublicProfileLoading(false);
@@ -293,7 +285,6 @@ export default function App() {
 
   const handleProfileCreated = (newProfile: BusinessProfile) => {
     setProfiles((prev) => [newProfile, ...prev]);
-    setActiveProfileId(newProfile.id);
   };
 
   const handleSignOut = async () => {
@@ -451,8 +442,6 @@ export default function App() {
     setQuoteModalOpen(true);
   };
 
-  const resolvedPublicProfile =
-    profiles.find((p) => p.id === activeProfileId) || profiles[0] || initialProfiles[0];
 
   return (
     <div className="min-h-screen bg-white text-slate-900 font-sans antialiased selection:bg-amber-300 selection:text-black">
@@ -546,9 +535,9 @@ export default function App() {
               <span>←</span>
               <span>{translations[currentLanguage].app.backToSite}</span>
             </button>
-            {(loadedPublicProfile || resolvedPublicProfile) && (
+            {loadedPublicProfile && (
               <span className="text-xs font-mono text-slate-500">
-                {translations[currentLanguage].app.livePreviewOf} {(loadedPublicProfile || resolvedPublicProfile).displayName}
+                {translations[currentLanguage].app.livePreviewOf} {loadedPublicProfile.displayName}
               </span>
             )}
           </div>
@@ -558,9 +547,9 @@ export default function App() {
               <div className="w-8 h-8 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
               <p className="text-xs font-semibold text-slate-600">{translations[currentLanguage].app.profileLoading}</p>
             </div>
-          ) : (loadedPublicProfile || resolvedPublicProfile) ? (
+          ) : loadedPublicProfile ? (
             <PublicProfileView
-              profile={loadedPublicProfile || resolvedPublicProfile}
+              profile={loadedPublicProfile}
               currentLanguage={currentLanguage}
               onLeadSubmitted={handleLeadSubmitted}
             />
@@ -598,7 +587,7 @@ export default function App() {
           {currentSubPage === 'demo' && (
             <ProfileDemoPage
               currentLanguage={currentLanguage}
-              demoProfiles={profiles}
+              demoProfiles={getStoredProfiles(currentLanguage)}
               onNavigate={setCurrentSubPage}
               onOrderCard={() => setCurrentSubPage('configurator')}
             />
