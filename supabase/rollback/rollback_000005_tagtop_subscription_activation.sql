@@ -3,15 +3,16 @@
 -- Target File: supabase/rollback/rollback_000005_tagtop_subscription_activation.sql
 -- Target Migration Reverted: 20261030000005_tagtop_subscription_activation_and_renewal.sql
 -- Restored State Source of Truth:
---   - Functions: Migration 000003 (founder_update_order_status, immutability triggers)
+--   - Functions: Migration 000003 (enforce_order_immutability, enforce_business_profile_immutability)
+--   - Order Fulfillment Base: Migration 000003 (founder_update_order_status with duplicate benefit avoidance)
 --   - Concurrency Base: Migration 000004 (founder_approve_bank_transfer UUID/FOR UPDATE)
 -- Execution Mode: TRANSACTIONAL (Single Atomic Transaction with Strict Assertions)
 -- DO NOT EXECUTE AUTOMATICALLY - REQUIRES EXPLICIT OPERATOR APPROVAL
 -- =============================================================================
 --
--- ARCHITECTURAL NOTICE & SAFETY SAFEGUARDS:
+-- ARCHITECTURAL NOTICE & SAFETY SAFEGUARDS (TASK 5):
 -- -----------------------------------------------------------------------------
--- 1. PRESERVATION OF AUDIT TRAILS & TRACKING COLUMNS (TASK 6):
+-- 1. PRESERVATION OF AUDIT TRAILS & TRACKING COLUMNS:
 --    This rollback deliberately DOES NOT drop columns (initial_subscription_activated,
 --    activated_at, initial_order_id, delivery_benefits_applied, delivered_at).
 --    Silently dropping columns would destroy audit records, fulfillment tracking,
@@ -24,7 +25,16 @@
 --    subscription activation extensions in founder_approve_bank_transfer and
 --    founder_update_order_status, strictly preserving 000004 concurrency safety.
 --
--- 3. EXPLICIT OPERATOR APPROVAL REQUIREMENT:
+-- 3. STRICT PRESERVATION OF ORDER INSERTION & AUTHENTICATION PROTECTIONS:
+--    Strictly preserves all baseline security guarantees from Migration 000003,
+--    including server-calculated pricing, customer_id assignment, anonymous
+--    guest checkout restrictions, and zero-trust resets of proof and card flags.
+--
+-- 4. AVOIDANCE OF FUTURE DUPLICATE DELIVERY BENEFITS:
+--    Checks orders.delivery_benefits_applied so orders delivered under Migration
+--    000005 will not re-credit physical card counts if updated after rollback.
+--
+-- 5. EXPLICIT OPERATOR APPROVAL REQUIREMENT:
 --    The transaction will immediately abort unless the session configuration:
 --      SET LOCAL tagtop.operator_approved_rollback = 'APPROVED';
 --    has been explicitly executed in the transaction prior to execution.
@@ -91,7 +101,7 @@ $$;
 -- STEP 3: RESTORE BASELINE PROCEDURES
 -- =============================================================================
 
--- 3.1 Restore founder_update_order_status (Migration 000003 baseline logic)
+-- 3.1 Restore founder_update_order_status (Migration 000003 baseline logic with duplicate benefit protection)
 CREATE OR REPLACE FUNCTION public.founder_update_order_status(
   p_order_id TEXT,
   p_order_status tagtop_order_status,
@@ -105,7 +115,7 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized: Only founder admin or service role can modify order status';
   END IF;
 
-  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Order % not found', p_order_id;
   END IF;
@@ -117,14 +127,23 @@ BEGIN
     updated_at = timezone('utc'::text, now())
   WHERE id = p_order_id;
 
+  -- Avoid future duplicate delivery benefits for orders previously credited
   IF p_order_status = 'delivered' AND v_order.profile_id IS NOT NULL THEN
-    UPDATE public.business_profiles
-    SET
-      access_state = 'active',
-      linked_card_count = linked_card_count + v_order.card_quantity,
-      updated_at = timezone('utc'::text, now())
-    WHERE id = v_order.profile_id
-      AND access_state IN ('private_preview', 'order_pending');
+    IF NOT COALESCE(v_order.delivery_benefits_applied, FALSE) THEN
+      UPDATE public.business_profiles
+      SET
+        access_state = 'active',
+        linked_card_count = linked_card_count + v_order.card_quantity,
+        updated_at = timezone('utc'::text, now())
+      WHERE id = v_order.profile_id
+        AND access_state IN ('private_preview', 'order_pending');
+
+      UPDATE public.orders
+      SET
+        delivery_benefits_applied = TRUE,
+        delivered_at = COALESCE(delivered_at, timezone('utc'::text, now()))
+      WHERE id = p_order_id;
+    END IF;
   END IF;
 
   RETURN jsonb_build_object(
@@ -275,7 +294,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 
--- 3.4 Restore enforce_order_immutability (Migration 000003 baseline)
+-- 3.4 Restore enforce_order_immutability (Migration 000003 complete baseline with all protections)
 CREATE OR REPLACE FUNCTION public.enforce_order_immutability()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -325,6 +344,28 @@ BEGIN
       NEW.price_mad := (v_unit_card_price * NEW.card_quantity) + NEW.wooden_stand_price_mad;
       NEW.order_status := 'received';
       NEW.payment_status := 'cod_pending';
+      NEW.proof_approved := FALSE;
+      NEW.proof_rejection_reason := NULL;
+      NEW.proof_url := NULL;
+      NEW.card_uid := NULL;
+      NEW.is_demo := FALSE;
+
+      IF auth.uid() IS NOT NULL THEN
+        NEW.customer_id := auth.uid();
+        IF NEW.profile_id IS NOT NULL THEN
+          IF NOT EXISTS (
+            SELECT 1 FROM public.business_profiles
+            WHERE id = NEW.profile_id AND owner_id = auth.uid()
+          ) THEN
+            RAISE EXCEPTION 'Security violation: Cannot link order to a profile you do not own';
+          END IF;
+        END IF;
+      ELSE
+        NEW.customer_id := NULL;
+        IF NEW.profile_id IS NOT NULL THEN
+          RAISE EXCEPTION 'Security violation: Anonymous orders cannot be linked to existing business profiles. Please authenticate first.';
+        END IF;
+      END IF;
     END IF;
   ELSIF TG_OP = 'UPDATE' THEN
     IF NOT public.is_admin_or_service_role() THEN
@@ -375,6 +416,13 @@ BEGIN
     WHERE oid = to_regprocedure('public.founder_approve_bank_transfer(text, text)')
   ) THEN
     RAISE EXCEPTION 'Postcondition failed: founder_approve_bank_transfer is not SECURITY DEFINER';
+  END IF;
+
+  IF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.enforce_order_immutability()')
+  ) THEN
+    RAISE EXCEPTION 'Postcondition failed: enforce_order_immutability is not SECURITY DEFINER';
   END IF;
 END;
 $$;

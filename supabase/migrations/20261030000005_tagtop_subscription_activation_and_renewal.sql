@@ -1,23 +1,29 @@
 -- Migration: 20261030000005_tagtop_subscription_activation_and_renewal.sql
 -- Description: Milestone 3B - Subscription Activation, Delivery Idempotency & Renewal Accounting
 --
--- Key Capabilities:
+-- Key Capabilities & Protections:
 -- 1. Schema Extensions:
 --    - business_profiles: initial_subscription_activated, activated_at, initial_order_id
 --    - orders: delivery_benefits_applied, delivered_at
--- 2. Customer Immutability Hardening:
---    - Prevent customer modification of initial_subscription_activated, activated_at, initial_order_id
---    - Prevent customer modification of orders.profile_id, delivery_benefits_applied, delivered_at
---    - Preserve normal customer profile editing (bio, socials, products, documents, etc.)
--- 3. Delivery Idempotency & Correct Renewal Accounting:
---    - Delivery grants initial 180 days exactly once per profile
---    - Re-delivering the same order or duplicate RPC calls grants zero additional cards or days
---    - Subsequent card orders on an activated profile add physical cards but zero free days
---    - Genuine pre-delivery paid renewals are preserved and appended to delivery date + 180 days
---    - Post-delivery renewals are preserved and never double-counted
---    - Suspended profiles ('expired_suspended') remain suspended upon physical card delivery
---    - Rejection of invalid order transitions (e.g., cancelled orders cannot be delivered)
---    - Row-level concurrency locking on both orders and business_profiles with 5000ms timeout
+-- 2. Customer Immutability Hardening (Task 1):
+--    - Strict restoration of all baseline Migration 000003 security guarantees
+--    - Authoritative server pricing, customer_id assignment, anonymous checkout blocking
+--    - Reset proof_approved, proof_rejection_reason, proof_url, card_uid, is_demo on insert
+--    - Customer immutability on update for all pricing, configuration, fulfillment, and profile_id
+-- 3. Explicit Permitted-State Delivery Transitions (Task 2):
+--    - Terminal state protection: Delivered orders cannot be transitioned to any other status
+--    - No delivery directly from 'received' or intermediate review/production states
+--    - Permitted delivery sources: 'shipped' (standard logistics) or 'linked' (in-person handoff)
+--    - Prerequisite fulfillment check: Branded cards strictly require customer proof approval
+--    - Full idempotency: Duplicate delivery calls return success without duplicate cards or days
+--    - Support orders with NULL profile_id cleanly without errors or phantom activation
+-- 4. Safe Renewal Accounting & Legacy Profile Reconciliation (Task 3):
+--    - Genuine unactivated profiles start 180 included days upon delivery + genuine pre-delivery renewals
+--    - Legacy profiles and existing active/suspended profiles are recognized without assumption
+--    - Historical approved bank transfers on legacy profiles are never double-counted into new entitlements
+--    - Ambiguous transfer amounts fail safely for founder review
+-- 5. Multi-Resource Concurrency Hardening:
+--    - Row-level exclusive locks with 5000ms timeout on both orders and business_profiles
 
 -- =============================================================================
 -- 1. SCHEMA EXTENSIONS
@@ -45,7 +51,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_delivery_benefits
 
 
 -- =============================================================================
--- 2. BUSINESS PROFILES IMMUTABILITY TRIGGER (TASK 1)
+-- 2. BUSINESS PROFILES IMMUTABILITY TRIGGER
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.enforce_business_profile_immutability()
@@ -85,7 +91,7 @@ BEGIN
       IF NEW.is_demo IS DISTINCT FROM OLD.is_demo THEN
         RAISE EXCEPTION 'Security violation: Demo flag is immutable by customer';
       END IF;
-      -- Task 1: Protect new subscription activation fields against customer manipulation
+      -- Protect subscription activation fields against customer manipulation
       IF NEW.initial_subscription_activated IS DISTINCT FROM OLD.initial_subscription_activated THEN
         RAISE EXCEPTION 'Security violation: Subscription activation flag is immutable by customer';
       END IF;
@@ -108,7 +114,7 @@ CREATE TRIGGER trg_enforce_business_profile_immutability
 
 
 -- =============================================================================
--- 3. ORDERS IMMUTABILITY & FULFILLMENT TRIGGER (TASK 1 & TASK 3)
+-- 3. ORDERS IMMUTABILITY & FULFILLMENT TRIGGER (TASK 1: COMPLETE BASELINE RESTORATION)
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.enforce_order_immutability()
@@ -161,20 +167,37 @@ BEGIN
         NEW.wooden_stand_price_mad := 0.00;
       END IF;
 
-      -- 5. Server-calculated price override
+      -- 5. SERVER-CALCULATED PRICE OVERRIDE (Never trust client-supplied price_mad)
       NEW.price_mad := (v_unit_card_price * NEW.card_quantity) + NEW.wooden_stand_price_mad;
 
-      -- 6. Enforce safe initial fulfillment & payment states
+      -- 6. Enforce safe initial fulfillment & payment states (Baseline Security Guarantee)
       NEW.order_status := 'received';
       NEW.payment_status := 'cod_pending';
+      NEW.proof_approved := FALSE;
+      NEW.proof_rejection_reason := NULL;
+      NEW.proof_url := NULL;
+      NEW.card_uid := NULL;
+      NEW.is_demo := FALSE;
 
-      -- 7. Task 3: Ensure customer owns the associated profile if specified
-      IF NEW.profile_id IS NOT NULL THEN
-        IF NOT EXISTS (
-          SELECT 1 FROM public.business_profiles
-          WHERE id = NEW.profile_id AND owner_id = auth.uid()
-        ) THEN
-          RAISE EXCEPTION 'Security violation: Cannot associate order with a profile you do not own';
+      -- 7. Identity & Profile Ownership Audit (Baseline Security Guarantee)
+      IF auth.uid() IS NOT NULL THEN
+        NEW.customer_id := auth.uid();
+        -- If an authenticated user links a profile, verify they own it
+        IF NEW.profile_id IS NOT NULL THEN
+          IF NOT EXISTS (
+            SELECT 1 FROM public.business_profiles
+            WHERE id = NEW.profile_id AND owner_id = auth.uid()
+          ) THEN
+            RAISE EXCEPTION 'Security violation: Cannot link order to a profile you do not own';
+          END IF;
+        END IF;
+      ELSE
+        -- Guest checkout: customer_id is NULL.
+        -- SECURITY FIX: Anonymous guests CANNOT associate orders with existing business profiles.
+        -- Profile linking requires authenticated ownership.
+        NEW.customer_id := NULL;
+        IF NEW.profile_id IS NOT NULL THEN
+          RAISE EXCEPTION 'Security violation: Anonymous orders cannot be linked to existing business profiles. Please authenticate first.';
         END IF;
       END IF;
 
@@ -184,7 +207,7 @@ BEGIN
     END IF;
   ELSIF TG_OP = 'UPDATE' THEN
     IF NOT public.is_admin_or_service_role() THEN
-      -- Task 3: Customers cannot modify profile_id, delivery benefits, pricing, or configurations
+      -- Customer cannot modify prices, accessories, quantities, profile association, or fulfillment states
       IF NEW.customer_id IS DISTINCT FROM OLD.customer_id OR
          NEW.profile_id IS DISTINCT FROM OLD.profile_id OR
          NEW.price_mad IS DISTINCT FROM OLD.price_mad OR
@@ -199,7 +222,7 @@ BEGIN
          NEW.is_demo IS DISTINCT FROM OLD.is_demo OR
          NEW.delivery_benefits_applied IS DISTINCT FROM OLD.delivery_benefits_applied OR
          NEW.delivered_at IS DISTINCT FROM OLD.delivered_at THEN
-        RAISE EXCEPTION 'Security violation: Order pricing, profile association, configuration, and fulfillment are immutable';
+        RAISE EXCEPTION 'Security violation: Order pricing, configuration, and fulfillment are immutable';
       END IF;
 
       -- Customers can only transition order_status between received/artwork_review and customer_approved
@@ -243,6 +266,8 @@ DECLARE
   v_new_card_count INTEGER;
   v_benefits_applied BOOLEAN := FALSE;
   v_subscription_activated BOOLEAN := FALSE;
+  v_invalid_transfer RECORD;
+  v_has_delivered_orders BOOLEAN := FALSE;
 BEGIN
   -- 1. Authorization: Verified Founder Admin or Service Role only
   IF NOT public.is_admin_or_service_role() THEN
@@ -262,9 +287,34 @@ BEGIN
     RAISE EXCEPTION 'Order % not found', p_order_id;
   END IF;
 
-  -- 4. Terminal State & Transition Protection (Task 3)
-  IF v_order.order_status = 'delivered' AND p_order_status IN ('received', 'artwork_review') THEN
-    RAISE EXCEPTION 'Invalid transition: Delivered order % cannot be reverted to "%"', p_order_id, p_order_status;
+  -- 4. Terminal State & Permitted-State Transition Protection (Task 2)
+  -- 4.1 Delivered is terminal: cannot be transitioned to any other status
+  IF v_order.order_status = 'delivered' AND p_order_status != 'delivered' THEN
+    RAISE EXCEPTION 'Invalid transition: Delivered order % cannot be transitioned to "%" (delivered is terminal)', p_order_id, p_order_status;
+  END IF;
+
+  -- 4.2 Explicit permitted-state transition policy when transitioning TO 'delivered'
+  IF p_order_status = 'delivered' AND v_order.order_status != 'delivered' THEN
+    -- Prohibit delivery directly from 'received'
+    IF v_order.order_status = 'received' THEN
+      RAISE EXCEPTION 'Invalid transition: Order % cannot be delivered directly from "received". Must undergo fulfillment.', p_order_id;
+    END IF;
+
+    -- Prohibit delivery from artwork_review, customer_approved, or production without shipping/linking
+    IF v_order.order_status IN ('artwork_review', 'customer_approved', 'production') THEN
+      RAISE EXCEPTION 'Invalid transition: Order % cannot be delivered directly from "%". Fulfillment must reach shipped or linked first.', p_order_id, v_order.order_status;
+    END IF;
+
+    -- Permitted source states for delivery are 'shipped' or 'linked'
+    IF v_order.order_status NOT IN ('shipped', 'linked') THEN
+      RAISE EXCEPTION 'Invalid transition: Order % cannot be delivered from status "%"', p_order_id, v_order.order_status;
+    END IF;
+
+    -- Required fulfillment prerequisites:
+    -- If card is branded, artwork proof MUST be approved
+    IF v_order.card_branding = 'branded' AND NOT v_order.proof_approved THEN
+      RAISE EXCEPTION 'Invalid transition: Branded order % cannot be delivered without customer proof approval', p_order_id;
+    END IF;
   END IF;
 
   -- 5. Update Order Record
@@ -275,9 +325,32 @@ BEGIN
     updated_at = timezone('utc'::text, now())
   WHERE id = p_order_id;
 
-  -- 6. Delivery Processing (Triggered only when transitioning to or remaining 'delivered' with a profile)
-  IF p_order_status = 'delivered' AND v_order.profile_id IS NOT NULL THEN
-    -- Lock Profile Row to serialize concurrent order deliveries / renewals on the same profile
+  -- 6. Delivery Processing (Triggered only when transitioning to or remaining 'delivered')
+  IF p_order_status = 'delivered' THEN
+    -- 6.1 Account for orders with NULL profile_id (Task 2)
+    IF v_order.profile_id IS NULL THEN
+      -- Mark delivery benefits applied on the order itself to ensure duplicate calls remain idempotent
+      IF NOT v_order.delivery_benefits_applied THEN
+        UPDATE public.orders
+        SET
+          delivery_benefits_applied = TRUE,
+          delivered_at = COALESCE(delivered_at, timezone('utc'::text, now()))
+        WHERE id = p_order_id;
+        v_benefits_applied := TRUE;
+      ELSE
+        v_benefits_applied := FALSE;
+      END IF;
+
+      RETURN jsonb_build_object(
+        'success', TRUE,
+        'order_id', p_order_id,
+        'order_status', p_order_status,
+        'delivery_benefits_applied', v_benefits_applied,
+        'initial_subscription_activated', FALSE
+      );
+    END IF;
+
+    -- 6.2 Order has an associated profile_id: lock profile row
     SELECT * INTO v_profile
     FROM public.business_profiles
     WHERE id = v_order.profile_id
@@ -297,12 +370,71 @@ BEGIN
         WHERE id = p_order_id;
       ELSE
         v_new_card_count := v_profile.linked_card_count;
+        v_benefits_applied := FALSE;
       END IF;
 
-      -- B. Subscription Activation & Renewal Accounting (Per-Profile)
-      IF NOT v_profile.initial_subscription_activated THEN
-        -- Task 2: Reconstruct genuine pre-delivery renewal entitlements
-        -- Profile has NEVER been activated before, so any approved transfers represent pre-delivery renewals
+      -- B. Subscription Activation & Renewal Accounting (Task 3)
+      -- Determine if the profile was ALREADY previously activated or is a legacy profile
+      -- Check for prior activation evidence:
+      -- 1) Flag already TRUE
+      -- 2) Access state is active, renewal_due, grace_period, expired_suspended, restored
+      -- 3) Profile already has linked cards (linked_card_count > 0 before this order's benefits)
+      -- 4) Profile already has activated_at set
+      -- 5) Profile has another order previously delivered
+      SELECT EXISTS (
+        SELECT 1 FROM public.orders
+        WHERE profile_id = v_profile.id
+          AND order_status = 'delivered'
+          AND delivery_benefits_applied = TRUE
+          AND id != p_order_id
+      ) INTO v_has_delivered_orders;
+
+      IF v_profile.initial_subscription_activated OR
+         v_profile.access_state NOT IN ('private_preview', 'order_pending') OR
+         v_profile.linked_card_count > 0 OR
+         v_profile.activated_at IS NOT NULL OR
+         v_has_delivered_orders THEN
+
+        -- Profile was ALREADY activated or is a legacy profile!
+        -- Do NOT grant a new 180-day subscription.
+        -- Do NOT sum historical approved transfers into an additional entitlement.
+        -- Ensure initial_subscription_activated is set to TRUE to reconcile state without mutating expiration.
+        IF NOT v_profile.initial_subscription_activated THEN
+          UPDATE public.business_profiles
+          SET
+            initial_subscription_activated = TRUE,
+            activated_at = COALESCE(activated_at, timezone('utc'::text, now())),
+            initial_order_id = COALESCE(initial_order_id, p_order_id),
+            linked_card_count = v_new_card_count,
+            updated_at = timezone('utc'::text, now())
+          WHERE id = v_profile.id;
+        ELSIF v_benefits_applied THEN
+          -- Only update card count if new physical cards were added
+          UPDATE public.business_profiles
+          SET
+            linked_card_count = v_new_card_count,
+            updated_at = timezone('utc'::text, now())
+          WHERE id = v_profile.id;
+        END IF;
+
+        v_subscription_activated := FALSE;
+
+      ELSE
+        -- Profile is GENUINELY NEW (in private_preview/order_pending, 0 linked cards, no previous deliveries)
+        -- Validate historical transfers for safety (Fail safely on ambiguous histories):
+        SELECT * INTO v_invalid_transfer
+        FROM public.bank_transfers
+        WHERE profile_id = v_profile.id
+          AND status = 'approved'
+          AND amount_mad NOT IN (150.00, 200.00)
+        LIMIT 1;
+
+        IF FOUND THEN
+          RAISE EXCEPTION 'Ambiguous renewal history for profile %: transfer % has non-standard amount % MAD. Founder review required.',
+            v_profile.id, v_invalid_transfer.id, v_invalid_transfer.amount_mad;
+        END IF;
+
+        -- Sum genuine pre-delivery renewal days
         SELECT COALESCE(SUM(
           CASE
             WHEN amount_mad = 150.00 THEN 180
@@ -316,15 +448,10 @@ BEGIN
 
         -- Initial period starts at delivery date (CURRENT_DATE) + 180 included days + genuine pre-delivery renewals
         v_target_expiry := (CURRENT_DATE + INTERVAL '180 days' + (v_pre_delivery_renewal_days || ' days')::INTERVAL)::DATE;
-        -- Guarantee entitlements are never shortened
         v_new_expiry := GREATEST(v_profile.expiry_date, v_target_expiry);
 
-        -- Task 3: Suspended profiles are NOT automatically reactivated by additional card delivery
-        IF v_profile.access_state IN ('private_preview', 'order_pending') THEN
-          v_new_access_state := 'active';
-        ELSE
-          v_new_access_state := v_profile.access_state;
-        END IF;
+        -- Activate profile to 'active'
+        v_new_access_state := 'active';
 
         UPDATE public.business_profiles
         SET
@@ -338,17 +465,6 @@ BEGIN
         WHERE id = v_profile.id;
 
         v_subscription_activated := TRUE;
-      ELSE
-        -- Profile was already activated previously.
-        -- Task 3: A second physical card or repeated delivery grants zero additional subscription days.
-        -- Only update linked_card_count if new cards were added from an uncredited order.
-        IF v_benefits_applied THEN
-          UPDATE public.business_profiles
-          SET
-            linked_card_count = v_new_card_count,
-            updated_at = timezone('utc'::text, now())
-          WHERE id = v_profile.id;
-        END IF;
       END IF;
     END IF;
   END IF;
@@ -374,7 +490,7 @@ GRANT EXECUTE ON FUNCTION public.founder_update_order_status(TEXT, tagtop_order_
 
 
 -- =============================================================================
--- 5. HARDENED founder_approve_bank_transfer (TASK 2)
+-- 5. HARDENED founder_approve_bank_transfer (TASK 3)
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.founder_approve_bank_transfer(
@@ -438,8 +554,12 @@ BEGIN
   END IF;
 
   -- 7. Calculate New Expiry Date & Access State based on profile activation state
-  IF v_profile.initial_subscription_activated THEN
-    -- Post-delivery renewal: extend from whichever is later: current expiry or today
+  -- Check for prior activation or legacy status
+  IF v_profile.initial_subscription_activated OR
+     v_profile.access_state NOT IN ('private_preview', 'order_pending') OR
+     v_profile.linked_card_count > 0 THEN
+    -- Post-delivery renewal / Legacy active profile:
+    -- extend from whichever is later: current expiry or today
     IF v_profile.expiry_date > CURRENT_DATE THEN
       v_new_expiry := v_profile.expiry_date + v_days_to_add;
     ELSE
