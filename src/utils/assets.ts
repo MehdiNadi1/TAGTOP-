@@ -10,4 +10,11 @@ export function getAssetUrl(path: string): string {
   return `${baseUrl}${cleanPath}`;
 }
 
-export const TAGTOP_LOGO_URL = getAssetUrl('assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png');
+// Transparent logo for light backgrounds (header, footer, white cards)
+export const TAGTOP_LOGO_URL = getAssetUrl('assets/aistudio/tagtop_logo_dark_transparent.png');
+
+// Transparent white logo for dark backgrounds (black cards, dark showcase)
+export const TAGTOP_LOGO_WHITE_URL = getAssetUrl('assets/aistudio/tagtop_logo_white_transparent.png');
+
+// Fallback original logo
+export const TAGTOP_LOGO_ORIGINAL_URL = getAssetUrl('assets/aistudio/TAGTOP_Logo_Website_Header_72804e46.png');

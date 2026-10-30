@@ -6,8 +6,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { CardColor, CardBranding, Language } from '../../types';
 import { translations } from '../../i18n/translations';
-import { TAGTOP_LOGO_URL } from '../../utils/assets';
-import { Wifi, RotateCw, Sparkles } from 'lucide-react';
+import { TAGTOP_LOGO_URL, TAGTOP_LOGO_WHITE_URL } from '../../utils/assets';
+import { Wifi, RotateCw } from 'lucide-react';
 
 interface NfcCard3DProps {
   color: CardColor;
@@ -165,11 +165,9 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
               ) : branding === 'branded' ? (
                 <div className="flex items-center gap-2">
                   <img
-                    src={TAGTOP_LOGO_URL}
+                    src={isBlack ? TAGTOP_LOGO_WHITE_URL : TAGTOP_LOGO_URL}
                     alt="TAGTOP"
-                    className={`h-8 w-auto object-contain ${
-                      isBlack ? 'brightness-0 invert' : ''
-                    }`}
+                    className="h-8 w-auto object-contain"
                   />
                 </div>
               ) : (
@@ -246,9 +244,9 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
                 <div className="flex items-center gap-1.5 opacity-85">
                   <span className="text-[10px] font-mono tracking-wider">{t.nfcCard.poweredBy}</span>
                   <img
-                    src={TAGTOP_LOGO_URL}
+                    src={isBlack ? TAGTOP_LOGO_WHITE_URL : TAGTOP_LOGO_URL}
                     alt="TAGTOP"
-                    className={`h-4 w-auto object-contain ${isBlack ? 'brightness-0 invert' : ''}`}
+                    className="h-4 w-auto object-contain"
                   />
                 </div>
               ) : (

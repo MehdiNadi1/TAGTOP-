@@ -1,9 +1,14 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
 import { Language, AppView, MarketingSubPage } from '../../types';
 import { translations } from '../../i18n/translations';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
 import { AuthUserProfile } from '../../services/backend/authService';
-import { Globe, Menu, X, Shield, User, ExternalLink, ArrowRight } from 'lucide-react';
+import { Globe, Menu, X, Shield, User, ArrowRight } from 'lucide-react';
 
 interface HeaderProps {
   currentLanguage: Language;
@@ -60,7 +65,10 @@ export const Header: React.FC<HeaderProps> = ({
     <>
       {/* Optional Dev / Inspection Bar */}
       {isDevMode && (
-        <aside className="bg-neutral-900 text-neutral-300 text-xs py-1.5 px-4 sm:px-8 border-b border-neutral-800" aria-label="Development toolbar">
+        <aside
+          className="bg-neutral-950 text-neutral-300 text-xs py-1.5 px-4 sm:px-8 border-b border-neutral-800"
+          aria-label="Development toolbar"
+        >
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="font-semibold text-white tracking-wide uppercase text-[10px] bg-neutral-800 px-2 py-0.5 rounded font-mono">
@@ -71,7 +79,7 @@ export const Header: React.FC<HeaderProps> = ({
               </span>
             </div>
 
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => onViewChange('marketing')}
@@ -107,34 +115,20 @@ export const Header: React.FC<HeaderProps> = ({
                 <Shield className="w-3 h-3 shrink-0" />
                 <span>{t.common.founderAdmin}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => onViewChange('public-profile')}
-                className={`px-2.5 py-1 rounded text-xs flex items-center gap-1.5 transition-colors cursor-pointer ${
-                  currentView === 'public-profile'
-                    ? 'bg-[#FFD700] text-black font-semibold'
-                    : 'hover:text-white hover:bg-neutral-800'
-                }`}
-              >
-                <ExternalLink className="w-3 h-3 shrink-0" />
-                <span>{t.common.liveProfile}</span>
-              </button>
             </div>
           </div>
         </aside>
       )}
 
-      {/* Sticky Top Header */}
+      {/* Primary Sticky Header */}
       <header
-        className={`sticky top-0 z-40 bg-white/95 backdrop-blur-md transition-all duration-300 ${
-          isScrolled
-            ? 'shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)] border-b border-neutral-200/90'
-            : 'border-b border-neutral-100'
+        className={`sticky top-0 z-50 bg-white/98 backdrop-blur-md transition-all duration-200 border-b ${
+          isScrolled ? 'border-neutral-200 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.06)]' : 'border-neutral-100'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-8 h-[70px] sm:h-[80px] flex items-center justify-between gap-4 lg:gap-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[72px] sm:h-[80px] flex items-center justify-between gap-4">
           
-          {/* ZONE 1: BRAND LOGO */}
+          {/* ZONE 1: LOGO */}
           <a
             href="#home"
             onClick={(e) => {
@@ -142,21 +136,21 @@ export const Header: React.FC<HeaderProps> = ({
               onViewChange('marketing');
               onNavigateSubPage('home');
             }}
-            className="flex items-center shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFD700]"
-            aria-label={`${t.common.brandName} ${t.common.ariaHome}`}
+            className="flex items-center shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFD700] rounded-lg py-1"
+            aria-label={`${t.common.brandName} - ${t.common.ariaHome}`}
           >
-            <div className="w-[130px] sm:w-[160px] h-[36px] sm:h-[42px] flex items-center justify-start">
+            <div className="h-8 sm:h-9 w-auto flex items-center">
               <img
                 src={TAGTOP_LOGO_URL}
                 alt="TAGTOP"
-                className="w-full h-full object-contain object-left rtl:object-right"
+                className="h-full w-auto object-contain object-left rtl:object-right"
               />
             </div>
           </a>
 
-          {/* ZONE 2: EDITORIAL NAV LINKS (Clean typography, hairline underline on active) */}
+          {/* ZONE 2: PRIMARY NAVIGATION LINKS (Visible from md/tablet and up) */}
           <nav
-            className="hidden lg:flex items-center gap-7 xl:gap-9 text-sm font-medium"
+            className="hidden md:flex items-center gap-5 lg:gap-7 xl:gap-8 text-sm"
             aria-label="Navigation principale"
           >
             {navLinks.map((link) => {
@@ -170,10 +164,10 @@ export const Header: React.FC<HeaderProps> = ({
                     onViewChange('marketing');
                     onNavigateSubPage(link.id);
                   }}
-                  className={`relative py-2 text-sm tracking-tight transition-colors duration-150 cursor-pointer ${
+                  className={`relative py-1.5 text-xs lg:text-sm font-semibold tracking-tight transition-colors duration-150 cursor-pointer ${
                     isActive
-                      ? 'text-black font-bold'
-                      : 'text-neutral-600 hover:text-black font-medium'
+                      ? 'text-neutral-950 font-bold'
+                      : 'text-neutral-600 hover:text-neutral-950'
                   }`}
                 >
                   {link.label}
@@ -185,17 +179,17 @@ export const Header: React.FC<HeaderProps> = ({
             })}
           </nav>
 
-          {/* ZONE 3: ACTIONS & GROUPED LANGUAGE SELECTOR */}
+          {/* ZONE 3: ACTIONS & CONTROLS */}
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             
-            {/* Espace Client (Clean border button with icon) */}
+            {/* Espace Client (Client Area Access) */}
             <button
               type="button"
               onClick={() => onViewChange('customer-dashboard')}
-              className={`hidden md:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                 currentView === 'customer-dashboard'
-                  ? 'bg-neutral-900 text-white border-neutral-900 shadow-xs'
-                  : 'text-neutral-800 bg-white border-neutral-300 hover:border-black hover:bg-neutral-50'
+                  ? 'bg-neutral-950 text-white border-neutral-950 shadow-xs'
+                  : 'text-neutral-800 bg-neutral-50 hover:bg-neutral-100 border-neutral-200 hover:border-neutral-400'
               }`}
             >
               {currentUser ? (
@@ -206,23 +200,23 @@ export const Header: React.FC<HeaderProps> = ({
               <span>{currentUser?.fullName?.split(' ')[0] || t.common.clientArea}</span>
             </button>
 
-            {/* Desktop Language Switcher (Grouped compact control) */}
+            {/* Language Selector: Compact Segmented Toggle (FR | AR | EN) */}
             <div
-              className="flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200/80"
+              className="flex items-center bg-neutral-100 p-0.5 rounded-lg border border-neutral-200/90"
               dir="ltr"
               role="group"
               aria-label={t.common.ariaSwitchLang}
             >
-              <Globe className="w-3.5 h-3.5 text-neutral-400 mx-1.5 hidden sm:inline shrink-0" />
+              <Globe className="w-3.5 h-3.5 text-neutral-400 mx-1 hidden sm:inline shrink-0" />
               {(['fr', 'ar', 'en'] as Language[]).map((lang) => (
                 <button
                   key={lang}
                   type="button"
                   onClick={() => onLanguageChange(lang)}
-                  className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                  className={`px-2 sm:px-2.5 py-1 text-[11px] sm:text-xs font-bold rounded-md transition-all cursor-pointer ${
                     currentLanguage === lang
-                      ? 'bg-white text-black shadow-xs'
-                      : 'text-neutral-500 hover:text-black'
+                      ? 'bg-white text-neutral-950 shadow-xs'
+                      : 'text-neutral-500 hover:text-neutral-950'
                   }`}
                   aria-pressed={currentLanguage === lang}
                   aria-label={`${t.common.ariaSwitchLang} ${lang.toUpperCase()}`}
@@ -232,23 +226,23 @@ export const Header: React.FC<HeaderProps> = ({
               ))}
             </div>
 
-            {/* Primary Action CTA (Gold button, black text) */}
+            {/* Primary Order CTA (TAGTOP Gold) */}
             <button
               type="button"
               onClick={() => {
                 onViewChange('marketing');
                 onNavigateSubPage('configurator');
               }}
-              className="hidden sm:inline-flex items-center justify-center whitespace-nowrap bg-[#FFD700] hover:bg-[#FACC15] text-black font-extrabold text-xs sm:text-sm px-4.5 py-2.5 rounded-lg transition-transform active:scale-[0.98] shadow-xs cursor-pointer"
+              className="inline-flex items-center justify-center whitespace-nowrap bg-[#FFD700] hover:bg-[#FACC15] text-neutral-950 font-extrabold text-xs sm:text-sm px-3.5 sm:px-4.5 py-2.5 rounded-lg transition-transform active:scale-[0.98] shadow-xs cursor-pointer"
             >
               <span>{t.common.orderCardCTA}</span>
             </button>
 
-            {/* Mobile Hamburger Toggle */}
+            {/* Mobile Hamburger Toggle (Visible on screens < md) */}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-neutral-800 hover:bg-neutral-100 transition-colors cursor-pointer"
+              className="md:hidden p-2 rounded-lg text-neutral-800 hover:bg-neutral-100 transition-colors cursor-pointer"
               aria-label={t.common.ariaMainMenu}
               aria-expanded={mobileMenuOpen}
             >
@@ -259,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-neutral-200 bg-white px-5 py-6 shadow-xl animate-fadeIn">
+          <div className="md:hidden border-t border-neutral-200 bg-white px-5 py-6 shadow-xl animate-fadeIn">
             <nav className="flex flex-col gap-2" aria-label="Menu mobile">
               {navLinks.map((link) => {
                 const isActive = currentSubPage === link.id;
@@ -273,9 +267,9 @@ export const Header: React.FC<HeaderProps> = ({
                       onNavigateSubPage(link.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`text-base font-semibold px-3 py-2.5 rounded-lg transition-colors ${
+                    className={`text-base font-bold px-3.5 py-2.5 rounded-lg transition-colors ${
                       isActive
-                        ? 'bg-neutral-100 text-black border-l-4 rtl:border-l-0 rtl:border-r-4 border-[#FFD700]'
+                        ? 'bg-neutral-100 text-neutral-950 border-l-4 rtl:border-l-0 rtl:border-r-4 border-[#FFD700]'
                         : 'text-neutral-700 hover:bg-neutral-50'
                     }`}
                   >
@@ -285,8 +279,8 @@ export const Header: React.FC<HeaderProps> = ({
               })}
 
               {/* Mobile Language Switcher */}
-              <div className="pt-4 pb-2 border-t border-neutral-100 flex items-center justify-between">
-                <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+              <div className="pt-4 pb-3 border-t border-neutral-100 flex items-center justify-between">
+                <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
                   {t.common.language}
                 </span>
                 <div
@@ -300,7 +294,7 @@ export const Header: React.FC<HeaderProps> = ({
                       onClick={() => {
                         onLanguageChange(lang);
                       }}
-                      className={`px-3 py-1 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
                         currentLanguage === lang
                           ? 'bg-white text-black shadow-xs'
                           : 'text-neutral-500 hover:text-black'

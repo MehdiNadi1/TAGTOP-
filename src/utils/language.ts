@@ -134,3 +134,4 @@ export function syncDocumentDirection(lang: Language, doc?: Document): void {
     targetDoc.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   } catch {}
 }
+

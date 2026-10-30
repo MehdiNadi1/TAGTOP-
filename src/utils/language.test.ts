@@ -235,3 +235,4 @@ test('RTL Synchronization: syncDocumentDirection sets dir=rtl for ar and dir=ltr
   assert.strictEqual(mockDoc.documentElement.lang, 'en');
   assert.strictEqual(mockDoc.documentElement.dir, 'ltr');
 });
+
