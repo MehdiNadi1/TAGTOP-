@@ -398,6 +398,11 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 
+-- 3.5 Drop Migration 000005 Reconciliation Procedures
+DROP FUNCTION IF EXISTS public.founder_reconcile_legacy_profile(TEXT, TEXT, TIMESTAMPTZ, TEXT);
+DROP FUNCTION IF EXISTS public.founder_get_unreconciled_legacy_profiles();
+
+
 -- =============================================================================
 -- STEP 4: POSTCONDITION ASSERTIONS (VERIFY SUCCESSFUL RESTORATION)
 -- =============================================================================
@@ -423,6 +428,14 @@ BEGIN
     WHERE oid = to_regprocedure('public.enforce_order_immutability()')
   ) THEN
     RAISE EXCEPTION 'Postcondition failed: enforce_order_immutability is not SECURITY DEFINER';
+  END IF;
+
+  IF to_regprocedure('public.founder_reconcile_legacy_profile(text, text, timestamptz, text)') IS NOT NULL THEN
+    RAISE EXCEPTION 'Postcondition failed: founder_reconcile_legacy_profile was not dropped';
+  END IF;
+
+  IF to_regprocedure('public.founder_get_unreconciled_legacy_profiles()') IS NOT NULL THEN
+    RAISE EXCEPTION 'Postcondition failed: founder_get_unreconciled_legacy_profiles was not dropped';
   END IF;
 END;
 $$;

@@ -1,35 +1,148 @@
 -- Migration: 20261030000005_tagtop_subscription_activation_and_renewal.sql
 -- Description: Milestone 3B - Subscription Activation, Delivery Idempotency & Renewal Accounting
+-- Release Gate: Atomic Transaction with Strict Precondition/Postcondition Assertions & Conservative Legacy Reconciliation
 --
 -- Key Capabilities & Protections:
--- 1. Schema Extensions:
+-- 1. Single Atomic Transaction:
+--    - Strict precondition assertions verifying Migration 000004 baseline, tables, enums, triggers, and state
+--    - Migration operations wrapped in BEGIN ... COMMIT with zero partial schema changes on failure
+--    - Strict postcondition assertions verifying tracking columns, immutability, signatures, and permissions
+-- 2. Schema Extensions:
 --    - business_profiles: initial_subscription_activated, activated_at, initial_order_id
 --    - orders: delivery_benefits_applied, delivered_at
--- 2. Customer Immutability Hardening (Task 1):
+-- 3. Customer Immutability Hardening (Task 1):
 --    - Strict restoration of all baseline Migration 000003 security guarantees
 --    - Authoritative server pricing, customer_id assignment, anonymous checkout blocking
 --    - Reset proof_approved, proof_rejection_reason, proof_url, card_uid, is_demo on insert
 --    - Customer immutability on update for all pricing, configuration, fulfillment, and profile_id
--- 3. Explicit Permitted-State Delivery Transitions (Task 2):
+-- 4. Explicit Permitted-State Delivery Transitions (Task 2):
 --    - Terminal state protection: Delivered orders cannot be transitioned to any other status
 --    - No delivery directly from 'received' or intermediate review/production states
 --    - Permitted delivery sources: 'shipped' (standard logistics) or 'linked' (in-person handoff)
 --    - Prerequisite fulfillment check: Branded cards strictly require customer proof approval
 --    - Full idempotency: Duplicate delivery calls return success without duplicate cards or days
 --    - Support orders with NULL profile_id cleanly without errors or phantom activation
--- 4. Safe Renewal Accounting & Legacy Profile Reconciliation (Task 3):
+-- 5. Safe Renewal Accounting & Conservative Legacy Profile Reconciliation (Task 3):
 --    - Genuine unactivated profiles start 180 included days upon delivery + genuine pre-delivery renewals
 --    - Legacy profiles and existing active/suspended profiles are recognized without assumption
---    - Historical approved bank transfers on legacy profiles are never double-counted into new entitlements
---    - Ambiguous transfer amounts fail safely for founder review
--- 5. Multi-Resource Concurrency Hardening:
+--    - Ambiguous legacy profiles DO NOT receive fabricated activated_at or initial_order_id values
+--    - Expiration dates and paid entitlements are NEVER altered during legacy reconciliation
+--    - Dedicated founder procedures for reviewing and classifying historical profiles
+-- 6. Multi-Resource Concurrency Hardening:
 --    - Row-level exclusive locks with 5000ms timeout on both orders and business_profiles
 
+BEGIN;
+
 -- =============================================================================
--- 1. SCHEMA EXTENSIONS
+-- 1. PRECONDITION ASSERTIONS
+-- =============================================================================
+DO $$
+DECLARE
+  v_missing TEXT := '';
+  v_bt_default TEXT;
+  v_col_count INTEGER := 0;
+BEGIN
+  -- 1.1 Verify Migration 000004 functions and expected behavior are present
+  IF to_regprocedure('public.founder_approve_bank_transfer(text, text)') IS NULL THEN
+    v_missing := v_missing || 'public.founder_approve_bank_transfer(text, text); ';
+  END IF;
+  IF to_regprocedure('public.founder_reject_bank_transfer(text, text)') IS NULL THEN
+    v_missing := v_missing || 'public.founder_reject_bank_transfer(text, text); ';
+  END IF;
+
+  -- Verify Migration 000004 bank_transfers.id hardened UUID default
+  SELECT column_default INTO v_bt_default
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'bank_transfers' AND column_name = 'id';
+
+  IF v_bt_default IS NULL OR v_bt_default NOT ILIKE '%gen_random_uuid%' THEN
+    v_missing := v_missing || 'bank_transfers.id default must use gen_random_uuid() (Migration 000004 baseline); ';
+  END IF;
+
+  -- 1.2 Verify required tables, enums, triggers, and helper functions exist
+  IF to_regclass('public.business_profiles') IS NULL THEN
+    v_missing := v_missing || 'table public.business_profiles; ';
+  END IF;
+  IF to_regclass('public.orders') IS NULL THEN
+    v_missing := v_missing || 'table public.orders; ';
+  END IF;
+  IF to_regclass('public.bank_transfers') IS NULL THEN
+    v_missing := v_missing || 'table public.bank_transfers; ';
+  END IF;
+  IF to_regclass('public.system_settings') IS NULL THEN
+    v_missing := v_missing || 'table public.system_settings; ';
+  END IF;
+
+  IF to_regtype('public.tagtop_order_status') IS NULL THEN
+    v_missing := v_missing || 'enum tagtop_order_status; ';
+  END IF;
+  IF to_regtype('public.tagtop_payment_status') IS NULL THEN
+    v_missing := v_missing || 'enum tagtop_payment_status; ';
+  END IF;
+  IF to_regtype('public.tagtop_profile_access_state') IS NULL THEN
+    v_missing := v_missing || 'enum tagtop_profile_access_state; ';
+  END IF;
+
+  IF to_regprocedure('public.is_admin_or_service_role()') IS NULL THEN
+    v_missing := v_missing || 'public.is_admin_or_service_role(); ';
+  END IF;
+  IF to_regprocedure('public.enforce_business_profile_immutability()') IS NULL THEN
+    v_missing := v_missing || 'public.enforce_business_profile_immutability(); ';
+  END IF;
+  IF to_regprocedure('public.enforce_order_immutability()') IS NULL THEN
+    v_missing := v_missing || 'public.enforce_order_immutability(); ';
+  END IF;
+  IF to_regprocedure('public.founder_update_order_status(text, tagtop_order_status, tagtop_payment_status)') IS NULL THEN
+    v_missing := v_missing || 'public.founder_update_order_status(text, tagtop_order_status, tagtop_payment_status); ';
+  END IF;
+
+  -- 1.3 Verify Migration 000005 is not already applied or partially applied
+  SELECT COUNT(*) INTO v_col_count
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND (
+      (table_name = 'business_profiles' AND column_name IN ('initial_subscription_activated', 'activated_at', 'initial_order_id'))
+      OR
+      (table_name = 'orders' AND column_name IN ('delivery_benefits_applied', 'delivered_at'))
+    );
+
+  -- If migration 000005 reconcile procedure already exists AND all columns exist, it is fully applied
+  IF to_regprocedure('public.founder_reconcile_legacy_profile(text, text, timestamptz, text)') IS NOT NULL
+     AND v_col_count = 5 THEN
+    v_missing := v_missing || 'Migration 000005 has already been fully applied; ';
+  END IF;
+
+  -- If some but not all columns exist, schema is in an inconsistent partial state
+  IF v_col_count > 0 AND v_col_count < 5 THEN
+    v_missing := v_missing || 'Migration 000005 is partially applied (' || v_col_count || ' of 5 tracking columns exist); ';
+  END IF;
+
+  -- 1.4 Existing function signatures and permissions match expectations
+  IF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.founder_approve_bank_transfer(text, text)')
+  ) THEN
+    v_missing := v_missing || 'founder_approve_bank_transfer must be SECURITY DEFINER; ';
+  END IF;
+  IF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.founder_reject_bank_transfer(text, text)')
+  ) THEN
+    v_missing := v_missing || 'founder_reject_bank_transfer must be SECURITY DEFINER; ';
+  END IF;
+
+  IF length(v_missing) > 0 THEN
+    RAISE EXCEPTION 'Migration 000005 precondition assertion failed: %', v_missing;
+  END IF;
+END;
+$$;
+
+
+-- =============================================================================
+-- 2. SCHEMA EXTENSIONS
 -- =============================================================================
 
--- 1.1 Business Profiles Subscription Activation Columns
+-- 2.1 Business Profiles Subscription Activation Columns
 ALTER TABLE public.business_profiles
   ADD COLUMN IF NOT EXISTS initial_subscription_activated BOOLEAN NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ DEFAULT NULL,
@@ -41,7 +154,7 @@ CREATE INDEX IF NOT EXISTS idx_business_profiles_initial_order_id
 CREATE INDEX IF NOT EXISTS idx_business_profiles_initial_activated
   ON public.business_profiles(initial_subscription_activated);
 
--- 1.2 Orders Delivery Fulfillment Tracking Columns
+-- 2.2 Orders Delivery Fulfillment Tracking Columns
 ALTER TABLE public.orders
   ADD COLUMN IF NOT EXISTS delivery_benefits_applied BOOLEAN NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ DEFAULT NULL;
@@ -51,7 +164,7 @@ CREATE INDEX IF NOT EXISTS idx_orders_delivery_benefits
 
 
 -- =============================================================================
--- 2. BUSINESS PROFILES IMMUTABILITY TRIGGER
+-- 3. BUSINESS PROFILES IMMUTABILITY TRIGGER
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.enforce_business_profile_immutability()
@@ -114,7 +227,7 @@ CREATE TRIGGER trg_enforce_business_profile_immutability
 
 
 -- =============================================================================
--- 3. ORDERS IMMUTABILITY & FULFILLMENT TRIGGER (TASK 1: COMPLETE BASELINE RESTORATION)
+-- 4. ORDERS IMMUTABILITY & FULFILLMENT TRIGGER (COMPLETE BASELINE RESTORATION)
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.enforce_order_immutability()
@@ -193,8 +306,7 @@ BEGIN
         END IF;
       ELSE
         -- Guest checkout: customer_id is NULL.
-        -- SECURITY FIX: Anonymous guests CANNOT associate orders with existing business profiles.
-        -- Profile linking requires authenticated ownership.
+        -- Anonymous guests CANNOT associate orders with existing business profiles.
         NEW.customer_id := NULL;
         IF NEW.profile_id IS NOT NULL THEN
           RAISE EXCEPTION 'Security violation: Anonymous orders cannot be linked to existing business profiles. Please authenticate first.';
@@ -247,7 +359,7 @@ CREATE TRIGGER trg_enforce_order_immutability
 
 
 -- =============================================================================
--- 4. HARDENED founder_update_order_status (TASK 2 & TASK 3)
+-- 5. HARDENED founder_update_order_status
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.founder_update_order_status(
@@ -287,7 +399,7 @@ BEGIN
     RAISE EXCEPTION 'Order % not found', p_order_id;
   END IF;
 
-  -- 4. Terminal State & Permitted-State Transition Protection (Task 2)
+  -- 4. Terminal State & Permitted-State Transition Protection
   -- 4.1 Delivered is terminal: cannot be transitioned to any other status
   IF v_order.order_status = 'delivered' AND p_order_status != 'delivered' THEN
     RAISE EXCEPTION 'Invalid transition: Delivered order % cannot be transitioned to "%" (delivered is terminal)', p_order_id, p_order_status;
@@ -327,7 +439,7 @@ BEGIN
 
   -- 6. Delivery Processing (Triggered only when transitioning to or remaining 'delivered')
   IF p_order_status = 'delivered' THEN
-    -- 6.1 Account for orders with NULL profile_id (Task 2)
+    -- 6.1 Account for orders with NULL profile_id
     IF v_order.profile_id IS NULL THEN
       -- Mark delivery benefits applied on the order itself to ensure duplicate calls remain idempotent
       IF NOT v_order.delivery_benefits_applied THEN
@@ -373,12 +485,11 @@ BEGIN
         v_benefits_applied := FALSE;
       END IF;
 
-      -- B. Subscription Activation & Renewal Accounting (Task 3)
-      -- Determine if the profile was ALREADY previously activated or is a legacy profile
-      -- Check for prior activation evidence:
+      -- B. Subscription Activation & Conservative Legacy Profile Handling
+      -- Check for prior activation or legacy status:
       -- 1) Flag already TRUE
       -- 2) Access state is active, renewal_due, grace_period, expired_suspended, restored
-      -- 3) Profile already has linked cards (linked_card_count > 0 before this order's benefits)
+      -- 3) Profile already has linked cards (linked_card_count > 0 before this order)
       -- 4) Profile already has activated_at set
       -- 5) Profile has another order previously delivered
       SELECT EXISTS (
@@ -396,15 +507,16 @@ BEGIN
          v_has_delivered_orders THEN
 
         -- Profile was ALREADY activated or is a legacy profile!
-        -- Do NOT grant a new 180-day subscription.
-        -- Do NOT sum historical approved transfers into an additional entitlement.
-        -- Ensure initial_subscription_activated is set to TRUE to reconcile state without mutating expiration.
+        -- CRITICAL CONSERVATIVE RULES:
+        -- 1. Do NOT grant a new 180-day subscription period.
+        -- 2. Do NOT alter existing expiration dates or paid entitlements.
+        -- 3. Do NOT automatically assign activated_at or initial_order_id to ambiguous legacy profiles!
+        --    Preserve whatever activated_at or initial_order_id already exist (or leave NULL).
+        -- 4. Flag initial_subscription_activated = TRUE so it is marked initialized.
         IF NOT v_profile.initial_subscription_activated THEN
           UPDATE public.business_profiles
           SET
             initial_subscription_activated = TRUE,
-            activated_at = COALESCE(activated_at, timezone('utc'::text, now())),
-            initial_order_id = COALESCE(initial_order_id, p_order_id),
             linked_card_count = v_new_card_count,
             updated_at = timezone('utc'::text, now())
           WHERE id = v_profile.id;
@@ -490,7 +602,7 @@ GRANT EXECUTE ON FUNCTION public.founder_update_order_status(TEXT, tagtop_order_
 
 
 -- =============================================================================
--- 5. HARDENED founder_approve_bank_transfer (TASK 3)
+-- 6. HARDENED founder_approve_bank_transfer
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.founder_approve_bank_transfer(
@@ -612,3 +724,265 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
 REVOKE EXECUTE ON FUNCTION public.founder_approve_bank_transfer(TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.founder_approve_bank_transfer(TEXT, TEXT) TO authenticated, service_role;
+
+
+-- =============================================================================
+-- 7. CONSERVATIVE FOUNDER PROCEDURES FOR HISTORICAL PROFILE RECONCILIATION
+-- =============================================================================
+
+-- 7.1 Inspect Unclassified / Ambiguous Historical Profiles
+CREATE OR REPLACE FUNCTION public.founder_get_unreconciled_legacy_profiles()
+RETURNS TABLE (
+  profile_id TEXT,
+  handle TEXT,
+  display_name TEXT,
+  access_state tagtop_profile_access_state,
+  expiry_date DATE,
+  linked_card_count INTEGER,
+  initial_subscription_activated BOOLEAN,
+  activated_at TIMESTAMPTZ,
+  initial_order_id TEXT
+) AS $$
+BEGIN
+  IF NOT public.is_admin_or_service_role() THEN
+    RAISE EXCEPTION 'Unauthorized: Only founder admin or service role can inspect unreconciled profiles';
+  END IF;
+
+  RETURN QUERY
+  SELECT
+    bp.id AS profile_id,
+    bp.handle,
+    bp.display_name,
+    bp.access_state,
+    bp.expiry_date,
+    bp.linked_card_count,
+    bp.initial_subscription_activated,
+    bp.activated_at,
+    bp.initial_order_id
+  FROM public.business_profiles bp
+  WHERE
+    -- Profiles that have been in service but lack clear activation tracking
+    (bp.access_state NOT IN ('private_preview', 'order_pending') OR bp.linked_card_count > 0 OR bp.initial_subscription_activated)
+    AND (bp.activated_at IS NULL OR bp.initial_order_id IS NULL)
+  ORDER BY bp.created_at ASC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.founder_get_unreconciled_legacy_profiles() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.founder_get_unreconciled_legacy_profiles() TO authenticated, service_role;
+
+
+-- 7.2 Explicit Founder Reconciliation Procedure for Historical Profiles
+-- Strictly avoids altering existing expiration dates, access states, or paid entitlements.
+CREATE OR REPLACE FUNCTION public.founder_reconcile_legacy_profile(
+  p_profile_id TEXT,
+  p_initial_order_id TEXT DEFAULT NULL,
+  p_activated_at TIMESTAMPTZ DEFAULT NULL,
+  p_notes TEXT DEFAULT ''
+)
+RETURNS JSONB AS $$
+DECLARE
+  v_profile RECORD;
+  v_order RECORD;
+BEGIN
+  -- 1. Authorization: Verified Founder Admin or Service Role only
+  IF NOT public.is_admin_or_service_role() THEN
+    RAISE EXCEPTION 'Unauthorized: Only founder admin or service role can reconcile legacy profiles';
+  END IF;
+
+  -- 2. Concurrency Safety: Limit lock wait time to 5 seconds
+  PERFORM set_config('lock_timeout', '5000ms', TRUE);
+
+  -- 3. Lock Business Profile
+  SELECT * INTO v_profile
+  FROM public.business_profiles
+  WHERE id = p_profile_id
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Profile % not found for reconciliation', p_profile_id;
+  END IF;
+
+  -- 4. Validate initial order if provided
+  IF p_initial_order_id IS NOT NULL THEN
+    SELECT * INTO v_order
+    FROM public.orders
+    WHERE id = p_initial_order_id;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Initial order % not found', p_initial_order_id;
+    END IF;
+
+    IF v_order.profile_id IS NOT NULL AND v_order.profile_id != p_profile_id THEN
+      RAISE EXCEPTION 'Order % belongs to profile %, not %', p_initial_order_id, v_order.profile_id, p_profile_id;
+    END IF;
+  END IF;
+
+  -- 5. Update Profile Tracking Fields
+  -- CONSERVATIVE GUARANTEE: Never alters expiry_date, access_state, or paid bank transfer entitlements.
+  UPDATE public.business_profiles
+  SET
+    initial_subscription_activated = TRUE,
+    activated_at = COALESCE(p_activated_at, activated_at),
+    initial_order_id = COALESCE(p_initial_order_id, initial_order_id),
+    updated_at = timezone('utc'::text, now())
+  WHERE id = p_profile_id;
+
+  RETURN jsonb_build_object(
+    'success', TRUE,
+    'profile_id', p_profile_id,
+    'initial_subscription_activated', TRUE,
+    'activated_at', COALESCE(p_activated_at, v_profile.activated_at),
+    'initial_order_id', COALESCE(p_initial_order_id, v_profile.initial_order_id),
+    'expiry_date', v_profile.expiry_date,
+    'access_state', v_profile.access_state,
+    'notes', p_notes
+  );
+
+EXCEPTION
+  WHEN lock_not_available THEN
+    RAISE EXCEPTION 'Concurrency conflict: Lock not available for profile %. Please retry.', p_profile_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+REVOKE EXECUTE ON FUNCTION public.founder_reconcile_legacy_profile(TEXT, TEXT, TIMESTAMPTZ, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.founder_reconcile_legacy_profile(TEXT, TEXT, TIMESTAMPTZ, TEXT) TO authenticated, service_role;
+
+
+-- =============================================================================
+-- 8. POSTCONDITION ASSERTIONS
+-- =============================================================================
+DO $$
+DECLARE
+  v_missing TEXT := '';
+  v_bt_default TEXT;
+  v_unauth_count INTEGER;
+  v_auth_count INTEGER;
+BEGIN
+  -- 8.1 Verify new tracking columns exist with correct properties
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'business_profiles' AND column_name = 'initial_subscription_activated' AND data_type = 'boolean'
+  ) THEN
+    v_missing := v_missing || 'business_profiles.initial_subscription_activated; ';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'business_profiles' AND column_name = 'activated_at'
+  ) THEN
+    v_missing := v_missing || 'business_profiles.activated_at; ';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'business_profiles' AND column_name = 'initial_order_id'
+  ) THEN
+    v_missing := v_missing || 'business_profiles.initial_order_id; ';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'delivery_benefits_applied' AND data_type = 'boolean'
+  ) THEN
+    v_missing := v_missing || 'orders.delivery_benefits_applied; ';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'delivered_at'
+  ) THEN
+    v_missing := v_missing || 'orders.delivered_at; ';
+  END IF;
+
+  -- 8.2 Verify triggers exist and are enabled
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'trg_enforce_business_profile_immutability' AND tgenabled = 'O'
+  ) THEN
+    v_missing := v_missing || 'trigger trg_enforce_business_profile_immutability; ';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'trg_enforce_order_immutability' AND tgenabled = 'O'
+  ) THEN
+    v_missing := v_missing || 'trigger trg_enforce_order_immutability; ';
+  END IF;
+
+  -- 8.3 Verify function signatures and SECURITY DEFINER configuration
+  IF to_regprocedure('public.founder_update_order_status(text, tagtop_order_status, tagtop_payment_status)') IS NULL THEN
+    v_missing := v_missing || 'founder_update_order_status; ';
+  ELSIF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.founder_update_order_status(text, tagtop_order_status, tagtop_payment_status)')
+  ) THEN
+    v_missing := v_missing || 'founder_update_order_status not SECURITY DEFINER; ';
+  END IF;
+
+  IF to_regprocedure('public.founder_approve_bank_transfer(text, text)') IS NULL THEN
+    v_missing := v_missing || 'founder_approve_bank_transfer; ';
+  ELSIF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.founder_approve_bank_transfer(text, text)')
+  ) THEN
+    v_missing := v_missing || 'founder_approve_bank_transfer not SECURITY DEFINER; ';
+  END IF;
+
+  IF to_regprocedure('public.founder_reconcile_legacy_profile(text, text, timestamptz, text)') IS NULL THEN
+    v_missing := v_missing || 'founder_reconcile_legacy_profile; ';
+  ELSIF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.founder_reconcile_legacy_profile(text, text, timestamptz, text)')
+  ) THEN
+    v_missing := v_missing || 'founder_reconcile_legacy_profile not SECURITY DEFINER; ';
+  END IF;
+
+  IF to_regprocedure('public.founder_get_unreconciled_legacy_profiles()') IS NULL THEN
+    v_missing := v_missing || 'founder_get_unreconciled_legacy_profiles; ';
+  ELSIF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.founder_get_unreconciled_legacy_profiles()')
+  ) THEN
+    v_missing := v_missing || 'founder_get_unreconciled_legacy_profiles not SECURITY DEFINER; ';
+  END IF;
+
+  -- 8.4 Verify execution privileges (no execute to PUBLIC or anon, granted to authenticated and service_role)
+  SELECT COUNT(*) INTO v_unauth_count
+  FROM information_schema.routine_privileges
+  WHERE routine_schema = 'public'
+    AND routine_name IN ('founder_update_order_status', 'founder_approve_bank_transfer', 'founder_reconcile_legacy_profile', 'founder_get_unreconciled_legacy_profiles')
+    AND grantee IN ('PUBLIC', 'anon')
+    AND privilege_type = 'EXECUTE';
+
+  IF v_unauth_count > 0 THEN
+    v_missing := v_missing || 'Unauthorized EXECUTE privilege granted to PUBLIC or anon; ';
+  END IF;
+
+  SELECT COUNT(*) INTO v_auth_count
+  FROM information_schema.routine_privileges
+  WHERE routine_schema = 'public'
+    AND routine_name IN ('founder_update_order_status', 'founder_approve_bank_transfer', 'founder_reconcile_legacy_profile', 'founder_get_unreconciled_legacy_profiles')
+    AND grantee IN ('authenticated', 'service_role')
+    AND privilege_type = 'EXECUTE';
+
+  IF v_auth_count < 8 THEN
+    v_missing := v_missing || 'Missing EXECUTE grants for authenticated or service_role (' || v_auth_count || ' < 8); ';
+  END IF;
+
+  -- 8.5 Verify preservation of hardened UUID bank-transfer ID default from Migration 000004
+  SELECT column_default INTO v_bt_default
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'bank_transfers' AND column_name = 'id';
+
+  IF v_bt_default IS NULL OR v_bt_default NOT ILIKE '%gen_random_uuid%' THEN
+    v_missing := v_missing || 'Preservation failure: bank_transfers.id default must remain gen_random_uuid(); ';
+  END IF;
+
+  IF length(v_missing) > 0 THEN
+    RAISE EXCEPTION 'Migration 000005 postcondition assertion failed: %', v_missing;
+  END IF;
+END;
+$$;
+
+COMMIT;
