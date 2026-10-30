@@ -254,7 +254,7 @@ REVOKE EXECUTE ON FUNCTION public.founder_approve_bank_transfer(TEXT, TEXT) FROM
 GRANT EXECUTE ON FUNCTION public.founder_approve_bank_transfer(TEXT, TEXT) TO authenticated, service_role;
 
 
--- 3.3 Restore enforce_business_profile_immutability (Migration 000003 baseline)
+-- 3.3 Restore enforce_business_profile_immutability (Migration 000003 baseline + tracking column immutability)
 CREATE OR REPLACE FUNCTION public.enforce_business_profile_immutability()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -266,6 +266,10 @@ BEGIN
       NEW.grace_deadline_date := NULL;
       NEW.linked_card_count := 0;
       NEW.is_demo := FALSE;
+      -- Retained tracking columns safe defaults on insert
+      NEW.initial_subscription_activated := FALSE;
+      NEW.activated_at := NULL;
+      NEW.initial_order_id := NULL;
     END IF;
   ELSIF TG_OP = 'UPDATE' THEN
     IF NOT public.is_admin_or_service_role() THEN
@@ -287,14 +291,29 @@ BEGIN
       IF NEW.is_demo IS DISTINCT FROM OLD.is_demo THEN
         RAISE EXCEPTION 'Security violation: Demo flag is immutable by customer';
       END IF;
+      -- Retained tracking columns customer immutability on update
+      IF NEW.initial_subscription_activated IS DISTINCT FROM OLD.initial_subscription_activated THEN
+        RAISE EXCEPTION 'Security violation: Subscription activation flag is immutable by customer';
+      END IF;
+      IF NEW.activated_at IS DISTINCT FROM OLD.activated_at THEN
+        RAISE EXCEPTION 'Security violation: Activation timestamp is immutable by customer';
+      END IF;
+      IF NEW.initial_order_id IS DISTINCT FROM OLD.initial_order_id THEN
+        RAISE EXCEPTION 'Security violation: Initial order association is immutable by customer';
+      END IF;
     END IF;
   END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
 
+DROP TRIGGER IF EXISTS trg_enforce_business_profile_immutability ON public.business_profiles;
+CREATE TRIGGER trg_enforce_business_profile_immutability
+  BEFORE INSERT OR UPDATE ON public.business_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_business_profile_immutability();
 
--- 3.4 Restore enforce_order_immutability (Migration 000003 complete baseline with all protections)
+
+-- 3.4 Restore enforce_order_immutability (Migration 000003 complete baseline with tracking column immutability)
 CREATE OR REPLACE FUNCTION public.enforce_order_immutability()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -366,10 +385,15 @@ BEGIN
           RAISE EXCEPTION 'Security violation: Anonymous orders cannot be linked to existing business profiles. Please authenticate first.';
         END IF;
       END IF;
+
+      -- Retained tracking columns safe defaults on insert
+      NEW.delivery_benefits_applied := FALSE;
+      NEW.delivered_at := NULL;
     END IF;
   ELSIF TG_OP = 'UPDATE' THEN
     IF NOT public.is_admin_or_service_role() THEN
       IF NEW.customer_id IS DISTINCT FROM OLD.customer_id OR
+         NEW.profile_id IS DISTINCT FROM OLD.profile_id OR
          NEW.price_mad IS DISTINCT FROM OLD.price_mad OR
          NEW.wooden_stand_price_mad IS DISTINCT FROM OLD.wooden_stand_price_mad OR
          NEW.card_quantity IS DISTINCT FROM OLD.card_quantity OR
@@ -379,7 +403,9 @@ BEGIN
          NEW.wooden_stand_selected IS DISTINCT FROM OLD.wooden_stand_selected OR
          NEW.payment_status IS DISTINCT FROM OLD.payment_status OR
          NEW.card_uid IS DISTINCT FROM OLD.card_uid OR
-         NEW.is_demo IS DISTINCT FROM OLD.is_demo THEN
+         NEW.is_demo IS DISTINCT FROM OLD.is_demo OR
+         NEW.delivery_benefits_applied IS DISTINCT FROM OLD.delivery_benefits_applied OR
+         NEW.delivered_at IS DISTINCT FROM OLD.delivered_at THEN
         RAISE EXCEPTION 'Security violation: Order pricing, configuration, and fulfillment are immutable';
       END IF;
 
@@ -396,6 +422,11 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, pg_temp;
+
+DROP TRIGGER IF EXISTS trg_enforce_order_immutability ON public.orders;
+CREATE TRIGGER trg_enforce_order_immutability
+  BEFORE INSERT OR UPDATE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_order_immutability();
 
 
 -- 3.5 Drop Migration 000005 Reconciliation Procedures
@@ -428,6 +459,13 @@ BEGIN
     WHERE oid = to_regprocedure('public.enforce_order_immutability()')
   ) THEN
     RAISE EXCEPTION 'Postcondition failed: enforce_order_immutability is not SECURITY DEFINER';
+  END IF;
+
+  IF NOT (
+    SELECT prosecdef FROM pg_proc
+    WHERE oid = to_regprocedure('public.enforce_business_profile_immutability()')
+  ) THEN
+    RAISE EXCEPTION 'Postcondition failed: enforce_business_profile_immutability is not SECURITY DEFINER';
   END IF;
 
   IF to_regprocedure('public.founder_reconcile_legacy_profile(text, text, timestamptz, text)') IS NOT NULL THEN
