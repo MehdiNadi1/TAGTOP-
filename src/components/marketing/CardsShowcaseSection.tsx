@@ -102,7 +102,7 @@ export const CardsShowcaseSection: React.FC<CardsShowcaseSectionProps> = ({
                 <div
                   className="flex items-center gap-1 p-1 bg-neutral-900 rounded-xl border border-neutral-800"
                   role="radiogroup"
-                  aria-label="Finition de la marque"
+                  aria-label={t.cards.brandedOption}
                 >
                   <button
                     type="button"

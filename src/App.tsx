@@ -54,31 +54,22 @@ import { ContactQuoteModal } from './components/modals/ContactQuoteModal';
 import { CustomerAuth } from './components/auth/CustomerAuth';
 import { translations } from './i18n/translations';
 import { TAGTOP_LOGO_URL } from './utils/assets';
+import {
+  resolveInitialLanguage,
+  setSafeStorageItem,
+  syncDocumentDirection,
+  STORAGE_KEY,
+} from './utils/language';
 import { AlertTriangle, Shield } from 'lucide-react';
 
 export default function App() {
-  // Global presentation language (persisted in localStorage, URL fallback, default initial: 'fr')
-  const [currentLanguage, setCurrentLanguage] = useState<Language>(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('tagtop_lang') : null;
-    if (saved === 'ar' || saved === 'en' || saved === 'fr') return saved as Language;
-    // Check URL param only if no saved preference exists
-    if (typeof window !== 'undefined') {
-      const urlLang = new URLSearchParams(window.location.search).get('lang');
-      if (urlLang === 'ar' || urlLang === 'en' || urlLang === 'fr') {
-        try {
-          localStorage.setItem('tagtop_lang', urlLang);
-        } catch {}
-        return urlLang as Language;
-      }
-    }
-    return 'fr';
-  });
+  // Global presentation language (persisted in localStorage, URL override support, default initial: 'fr')
+  const [currentLanguage, setCurrentLanguage] = useState<Language>(() => resolveInitialLanguage());
 
   const handleLanguageChange = (lang: Language) => {
     setCurrentLanguage(lang);
-    try {
-      localStorage.setItem('tagtop_lang', lang);
-    } catch {}
+    setSafeStorageItem(STORAGE_KEY, lang);
+    syncDocumentDirection(lang);
   };
 
   // Active platform view: marketing website, customer portal, founder console, or public live profile
@@ -125,8 +116,7 @@ export default function App() {
 
   // Synchronize HTML dir and lang attributes for full RTL support
   useEffect(() => {
-    document.documentElement.lang = currentLanguage;
-    document.documentElement.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
+    syncDocumentDirection(currentLanguage);
   }, [currentLanguage]);
 
   // Load customer profiles, orders, and leads when user is authenticated

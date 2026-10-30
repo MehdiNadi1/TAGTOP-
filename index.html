@@ -18,18 +18,38 @@
       (function() {
         try {
           var validLangs = ['ar', 'en', 'fr'];
-          var saved = localStorage.getItem('tagtop_lang');
           var lang = 'fr';
-          if (saved && validLangs.indexOf(saved) !== -1) {
-            lang = saved;
-          } else {
+          var hasExplicitUrl = false;
+
+          try {
             var params = new URLSearchParams(window.location.search);
             var urlLang = params.get('lang');
             if (urlLang && validLangs.indexOf(urlLang) !== -1) {
               lang = urlLang;
-              try { localStorage.setItem('tagtop_lang', lang); } catch (e) {}
+              hasExplicitUrl = true;
+              try {
+                localStorage.setItem('tagtop_lang', lang);
+              } catch (e) {}
+              // Clean stale lang parameter from URL to prevent overriding future manual choices
+              try {
+                params.delete('lang');
+                var remaining = params.toString();
+                var newSearch = remaining ? ('?' + remaining) : '';
+                var newUrl = window.location.pathname + newSearch + window.location.hash;
+                window.history.replaceState(null, '', newUrl);
+              } catch (e) {}
             }
+          } catch (e) {}
+
+          if (!hasExplicitUrl) {
+            try {
+              var saved = localStorage.getItem('tagtop_lang');
+              if (saved && validLangs.indexOf(saved) !== -1) {
+                lang = saved;
+              }
+            } catch (e) {}
           }
+
           document.documentElement.lang = lang;
           document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
         } catch (err) {}

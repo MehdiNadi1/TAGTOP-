@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Language, MarketingSubPage, AppView } from '../../types';
@@ -18,15 +23,35 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
   const t = translations[currentLanguage];
   const [isPlaying, setIsPlaying] = useState(true);
   const [tapStep, setTapStep] = useState<0 | 1 | 2>(0); // 0: approaching, 1: tap pulse, 2: profile revealed
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
 
-  // Automatic cycle loop with pause toggle
+  // Detect and observe accessibility preference for reduced motion
   useEffect(() => {
-    if (!isPlaying) return;
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mediaQuery.matches);
+    if (mediaQuery.matches) {
+      setIsPlaying(false);
+    }
+
+    const handler = (e: MediaQueryListEvent) => {
+      setPrefersReducedMotion(e.matches);
+      if (e.matches) {
+        setIsPlaying(false);
+      }
+    };
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  // Automatic cycle loop: strictly stopped if reduced motion is requested or paused
+  useEffect(() => {
+    if (!isPlaying || prefersReducedMotion) return;
     const timer = setInterval(() => {
       setTapStep((prev) => (prev === 2 ? 0 : ((prev + 1) as 0 | 1 | 2)));
-    }, 3000);
+    }, 3200);
     return () => clearInterval(timer);
-  }, [isPlaying]);
+  }, [isPlaying, prefersReducedMotion]);
 
   const handleManualTap = () => {
     setTapStep(1);
@@ -54,8 +79,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
             
             {/* Eyebrow badge */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={!prefersReducedMotion ? { opacity: 0, y: 12 } : undefined}
+              animate={!prefersReducedMotion ? { opacity: 1, y: 0 } : undefined}
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             >
               <div className="inline-flex items-center gap-2 text-xs font-bold text-neutral-900 bg-amber-100/80 border border-amber-300/60 px-3.5 py-1.5 rounded-full w-fit">
@@ -66,8 +91,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
             {/* Display Headline */}
             <motion.h1
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={!prefersReducedMotion ? { opacity: 0, y: 16 } : undefined}
+              animate={!prefersReducedMotion ? { opacity: 1, y: 0 } : undefined}
               transition={{ duration: 0.5, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
               className="text-4xl sm:text-5xl lg:text-[3.5rem] xl:text-[3.85rem] font-extrabold tracking-tight text-neutral-950 leading-[1.1] text-balance"
             >
@@ -76,8 +101,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
             {/* Subheadline */}
             <motion.p
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={!prefersReducedMotion ? { opacity: 0, y: 16 } : undefined}
+              animate={!prefersReducedMotion ? { opacity: 1, y: 0 } : undefined}
               transition={{ duration: 0.5, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
               className="text-base sm:text-lg text-neutral-600 leading-relaxed max-w-2xl"
             >
@@ -86,8 +111,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
             {/* Call to Actions */}
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={!prefersReducedMotion ? { opacity: 0, y: 16 } : undefined}
+              animate={!prefersReducedMotion ? { opacity: 1, y: 0 } : undefined}
               transition={{ duration: 0.5, delay: 0.24, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5 pt-2"
             >
@@ -111,8 +136,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
             {/* 3 Reassurance Badges */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              initial={!prefersReducedMotion ? { opacity: 0 } : undefined}
+              animate={!prefersReducedMotion ? { opacity: 1 } : undefined}
               transition={{ duration: 0.5, delay: 0.32 }}
               className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 border-t border-neutral-100 text-xs text-neutral-600 font-medium"
             >
@@ -134,8 +159,8 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
 
           {/* RIGHT COLUMN: CARD SHOWCASE & NFC SIMULATION STAGE (5 cols) */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={!prefersReducedMotion ? { opacity: 0, scale: 0.96 } : undefined}
+            animate={!prefersReducedMotion ? { opacity: 1, scale: 1 } : undefined}
             transition={{ duration: 0.6, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
             className="lg:col-span-5 relative flex flex-col items-center"
           >
@@ -145,16 +170,18 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                 <Wifi className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                 {t.hero.interactiveDemoTitle}
               </span>
-              <button
-                type="button"
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
-                title={isPlaying ? t.hero.pauseAnimation : t.hero.playAnimation}
-                aria-label={isPlaying ? t.hero.pauseAnimation : t.hero.playAnimation}
-              >
-                {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                <span>{isPlaying ? t.hero.pause : t.hero.play}</span>
-              </button>
+              {!prefersReducedMotion && (
+                <button
+                  type="button"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold bg-neutral-100 hover:bg-neutral-200 text-neutral-700 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                  title={isPlaying ? t.hero.pauseAnimation : t.hero.playAnimation}
+                  aria-label={isPlaying ? t.hero.pauseAnimation : t.hero.playAnimation}
+                >
+                  {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                  <span>{isPlaying ? t.hero.pause : t.hero.play}</span>
+                </button>
+              )}
             </div>
 
             {/* Stage Container on light architectural background */}
@@ -177,21 +204,22 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                     businessName={sampleName}
                     showFlipButton={false}
                     interactiveTilt={false}
+                    flipOnClick={false}
                     currentLanguage={currentLanguage}
                   />
                 </div>
 
-                {/* Primary Obsidian Black Card (Interactive / tap driver) */}
+                {/* Primary Obsidian Black Card (Interactive / tap driver without accidental flip) */}
                 <div
-                  onClick={handleManualTap}
                   className="w-full max-w-[360px] cursor-pointer transition-all duration-700 transform relative z-10"
                   style={{
-                    transform:
-                      tapStep === 1
+                    transform: !prefersReducedMotion
+                      ? tapStep === 1
                         ? 'translateY(22px) scale(0.97) rotate(1deg)'
                         : tapStep === 2
                           ? 'translateY(-6px) scale(0.94) rotate(0deg)'
-                          : 'translateY(0px) scale(1) rotate(1deg)',
+                          : 'translateY(0px) scale(1) rotate(1deg)'
+                      : undefined,
                   }}
                 >
                   <NfcCard3D
@@ -199,7 +227,9 @@ export const HeroInteractive: React.FC<HeroInteractiveProps> = ({
                     branding="branded"
                     businessName={sampleName}
                     showFlipButton={false}
-                    interactiveTilt={false}
+                    interactiveTilt={!prefersReducedMotion}
+                    flipOnClick={false}
+                    onCardClick={handleManualTap}
                     currentLanguage={currentLanguage}
                   />
                 </div>
