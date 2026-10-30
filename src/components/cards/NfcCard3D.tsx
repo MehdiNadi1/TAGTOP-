@@ -36,7 +36,6 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
   const t = translations[currentLanguage];
 
   const resolvedBusinessTitle = businessTitle || t.nfcCard.sampleBusinessTitle;
-
   const isBlack = color === 'black';
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -46,12 +45,11 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
     const y = e.clientY - rect.top;
     const centerX = rect.width / 2;
     const centerY = rect.height / 2;
-    
-    // Smooth angle bounds
-    const maxAngle = 12;
+
+    const maxAngle = 10;
     const rotX = -((y - centerY) / centerY) * maxAngle;
     const rotY = ((x - centerX) / centerX) * maxAngle;
-    
+
     setRotateX(rotX);
     setRotateY(rotY);
   };
@@ -85,60 +83,56 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
         }}
       >
         <div
-          className={`relative w-full h-full duration-500 transform-style-3d transition-transform ${
-            isFlipped ? 'rotate-y-180' : ''
-          }`}
+          className="relative w-full h-full duration-500 transform-style-3d transition-transform"
           style={{ transform: isFlipped ? 'rotateY(180deg)' : undefined }}
         >
           {/* FRONT FACE */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-2xl p-6 flex flex-col justify-between backface-hidden shadow-2xl border transition-colors ${
+            className={`absolute inset-0 w-full h-full rounded-2xl p-6 sm:p-7 flex flex-col justify-between backface-hidden transition-colors ${
               isBlack
-                ? 'bg-gradient-to-br from-neutral-900 via-neutral-950 to-black text-white border-neutral-800'
-                : 'bg-gradient-to-br from-neutral-50 via-white to-neutral-100 text-neutral-900 border-neutral-300'
+                ? 'bg-gradient-to-br from-neutral-900 via-neutral-950 to-[#0A0A0A] text-white border border-neutral-800/80'
+                : 'bg-gradient-to-br from-white via-[#FBFBFA] to-[#F3F4F6] text-neutral-900 border border-neutral-200/90'
             }`}
             style={{
               boxShadow: isBlack
-                ? '0 20px 40px -15px rgba(0,0,0,0.7), inset 0 1px 1px rgba(255,255,255,0.1)'
-                : '0 20px 40px -15px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.9)',
+                ? '0 24px 48px -12px rgba(0,0,0,0.7), 0 8px 16px -6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.14), inset 0 0 0 1px rgba(255,255,255,0.04)'
+                : '0 24px 48px -12px rgba(0,0,0,0.12), 0 8px 16px -6px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 0 0 1px rgba(0,0,0,0.05)',
             }}
           >
-            {/* Top row: NFC symbol & Smart Chip simulation */}
+            {/* Top row: Metallic Smart Chip & Contactless indicator */}
             <div className="flex items-center justify-between">
-              {/* Metallic Chip */}
+              {/* Realistic Metallic Contact Chip */}
               <div
-                className={`w-12 h-9 rounded-md border flex flex-col justify-between p-1 relative overflow-hidden ${
-                  isBlack
-                    ? 'bg-gradient-to-tr from-amber-200 via-yellow-400 to-amber-100 border-amber-300/40'
-                    : 'bg-gradient-to-tr from-amber-100 via-amber-300 to-yellow-200 border-amber-400/50'
-                }`}
+                className="w-12 h-9 rounded-md border flex flex-col justify-between p-1 relative overflow-hidden bg-gradient-to-br from-[#E6C25B] via-[#DFB140] to-[#C99E32] border-amber-300/60"
                 style={{
-                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.2)',
+                  boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.25), 0 1px 2px rgba(0,0,0,0.15)',
                 }}
               >
-                <div className="h-[1px] w-full bg-amber-700/30" />
-                <div className="flex justify-between w-full h-full py-0.5">
-                  <div className="w-1.5 h-full rounded-xs bg-amber-600/20" />
-                  <div className="w-2.5 h-full rounded-full border border-amber-700/30" />
-                  <div className="w-1.5 h-full rounded-xs bg-amber-600/20" />
+                <div className="h-[0.5px] w-full bg-amber-900/30" />
+                <div className="flex justify-between w-full h-full py-0.5 items-center">
+                  <div className="w-1.5 h-full rounded-xs bg-amber-900/20" />
+                  <div className="w-3.5 h-full rounded-full border border-amber-900/30 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-amber-900/20" />
+                  </div>
+                  <div className="w-1.5 h-full rounded-xs bg-amber-900/20" />
                 </div>
-                <div className="h-[1px] w-full bg-amber-700/30" />
+                <div className="h-[0.5px] w-full bg-amber-900/30" />
               </div>
 
               {/* NFC Contactless Wave Indicator */}
-              <div className="flex items-center gap-1.5 opacity-80" dir="ltr">
+              <div className="flex items-center gap-1.5 opacity-85" dir="ltr">
                 <Wifi
                   className={`w-5 h-5 rotate-90 ${
-                    isBlack ? 'text-amber-400' : 'text-neutral-800'
+                    isBlack ? 'text-[#FFD700]' : 'text-neutral-800'
                   }`}
                 />
-                <span className="text-[10px] uppercase font-mono tracking-widest font-semibold">
+                <span className="text-[10px] uppercase font-mono tracking-widest font-bold">
                   {t.nfcCard.nfcTap}
                 </span>
               </div>
             </div>
 
-            {/* Center Area: Brand Logo or Custom Business Artwork */}
+            {/* Center Area: Brand Hallmark or Custom Business Artwork */}
             <div className="my-auto py-2">
               {logoPreviewUrl ? (
                 <div className="max-h-12 flex items-center">
@@ -160,7 +154,7 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
                 </div>
               ) : (
                 <div className="space-y-0.5">
-                  <div className="text-xl font-bold tracking-tight uppercase font-sans">
+                  <div className="text-xl font-extrabold tracking-tight uppercase font-sans">
                     {businessName}
                   </div>
                   <div className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'}`}>
@@ -170,18 +164,18 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
               )}
             </div>
 
-            {/* Bottom Row: Holder Name & Security Tag */}
-            <div className="flex items-end justify-between pt-2 border-t border-current/10">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider font-mono opacity-60">
+            {/* Bottom Row: Holder Name & Security Chip Specification */}
+            <div className="flex items-end justify-between pt-3 border-t border-current/10">
+              <div className="space-y-0.5">
+                <p className="text-[9px] uppercase tracking-widest font-mono opacity-60">
                   {t.nfcCard.holderLabel}
                 </p>
-                <p className="text-sm font-semibold tracking-wide uppercase truncate max-w-[220px]">
+                <p className="text-sm font-bold tracking-tight uppercase truncate max-w-[220px]">
                   {businessName}
                 </p>
               </div>
               <div className="text-right rtl:text-left">
-                <p className="text-[9px] font-mono opacity-50 tracking-widest">
+                <p className="text-[9px] font-mono opacity-50 tracking-widest uppercase">
                   {t.nfcCard.secureChip}
                 </p>
               </div>
@@ -190,35 +184,45 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
 
           {/* BACK FACE */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-2xl p-6 flex flex-col justify-between backface-hidden shadow-2xl border transition-colors ${
+            className={`absolute inset-0 w-full h-full rounded-2xl p-6 sm:p-7 flex flex-col justify-between backface-hidden transition-colors ${
               isBlack
-                ? 'bg-neutral-950 text-white border-neutral-800'
-                : 'bg-neutral-100 text-neutral-900 border-neutral-300'
+                ? 'bg-gradient-to-br from-neutral-950 via-neutral-900 to-black text-white border border-neutral-800'
+                : 'bg-gradient-to-br from-[#F5F5F4] via-white to-[#E7E5E4] text-neutral-900 border border-neutral-300'
             }`}
             style={{
               transform: 'rotateY(180deg)',
               boxShadow: isBlack
-                ? '0 20px 40px -15px rgba(0,0,0,0.7)'
-                : '0 20px 40px -15px rgba(0,0,0,0.15)',
+                ? '0 24px 48px -12px rgba(0,0,0,0.7), 0 8px 16px -6px rgba(0,0,0,0.4)'
+                : '0 24px 48px -12px rgba(0,0,0,0.12), 0 8px 16px -6px rgba(0,0,0,0.06)',
             }}
           >
             {/* Magnetic stripe simulation */}
-            <div className={`-mx-6 -mt-1 h-9 ${isBlack ? 'bg-neutral-900 border-y border-neutral-800' : 'bg-neutral-800'}`} />
+            <div
+              className={`-mx-6 sm:-mx-7 -mt-2 h-10 ${
+                isBlack
+                  ? 'bg-neutral-900/90 border-y border-neutral-800'
+                  : 'bg-neutral-800/95 border-y border-neutral-700'
+              }`}
+            />
 
             <div className="my-auto space-y-3">
-              <div className="flex items-center justify-between text-xs font-mono opacity-70" dir="ltr">
+              <div className="flex items-center justify-between text-xs font-mono opacity-75" dir="ltr">
                 <span>{t.nfcCard.nfcIdLabel}: {cardUid}</span>
                 <span>{t.nfcCard.isoStandard}</span>
               </div>
-              <p className={`text-xs ${isBlack ? 'text-neutral-400' : 'text-neutral-600'} leading-relaxed text-left rtl:text-right`}>
+              <p
+                className={`text-xs ${
+                  isBlack ? 'text-neutral-400' : 'text-neutral-600'
+                } leading-relaxed text-left rtl:text-right`}
+              >
                 {t.nfcCard.backInstructions}
               </p>
             </div>
 
             {/* Back footer: TAGTOP hallmark (only if branded) */}
-            <div className="flex items-center justify-between pt-2 border-t border-current/10 text-xs">
+            <div className="flex items-center justify-between pt-3 border-t border-current/10 text-xs">
               {branding === 'branded' ? (
-                <div className="flex items-center gap-1.5 opacity-80">
+                <div className="flex items-center gap-1.5 opacity-85">
                   <span className="text-[10px] font-mono tracking-wider">{t.nfcCard.poweredBy}</span>
                   <img
                     src={TAGTOP_LOGO_URL}
@@ -237,17 +241,17 @@ export const NfcCard3D: React.FC<NfcCard3DProps> = ({
 
       {/* Interactive Helper / Flip Button */}
       {showFlipButton && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+        <div className="mt-4 flex items-center gap-2 text-xs text-neutral-500">
           <button
             type="button"
             onClick={() => setIsFlipped(!isFlipped)}
-            className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-md transition-colors cursor-pointer font-medium"
           >
             <RotateCw className="w-3.5 h-3.5" />
             <span>{isFlipped ? t.nfcCard.flipFront : t.nfcCard.flipBack}</span>
           </button>
-          <span className="text-slate-400">·</span>
-          <span className="text-slate-400">{t.nfcCard.tiltHint}</span>
+          <span className="text-neutral-300">·</span>
+          <span className="text-neutral-400">{t.nfcCard.tiltHint}</span>
         </div>
       )}
     </div>

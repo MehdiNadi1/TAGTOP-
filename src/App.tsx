@@ -57,10 +57,20 @@ import { TAGTOP_LOGO_URL } from './utils/assets';
 import { AlertTriangle, Shield } from 'lucide-react';
 
 export default function App() {
-  // Global presentation language (persisted in localStorage, default initial: 'fr')
+  // Global presentation language (persisted in localStorage, URL fallback, default initial: 'fr')
   const [currentLanguage, setCurrentLanguage] = useState<Language>(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('tagtop_lang') : null;
     if (saved === 'ar' || saved === 'en' || saved === 'fr') return saved as Language;
+    // Check URL param only if no saved preference exists
+    if (typeof window !== 'undefined') {
+      const urlLang = new URLSearchParams(window.location.search).get('lang');
+      if (urlLang === 'ar' || urlLang === 'en' || urlLang === 'fr') {
+        try {
+          localStorage.setItem('tagtop_lang', urlLang);
+        } catch {}
+        return urlLang as Language;
+      }
+    }
     return 'fr';
   });
 

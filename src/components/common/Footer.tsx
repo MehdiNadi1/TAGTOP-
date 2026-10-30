@@ -2,6 +2,7 @@ import React from 'react';
 import { Language, MarketingSubPage, AppView } from '../../types';
 import { translations } from '../../i18n/translations';
 import { TAGTOP_LOGO_URL } from '../../utils/assets';
+import { Globe } from 'lucide-react';
 
 interface FooterProps {
   currentLanguage: Language;
@@ -12,36 +13,50 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({
   currentLanguage,
+  onLanguageChange,
   onNavigateSubPage,
   onViewChange,
 }) => {
   const t = translations[currentLanguage];
 
   return (
-    <footer className="bg-white border-t border-neutral-200 py-12 text-slate-600 text-sm">
+    <footer className="bg-white border-t border-neutral-200/80 pt-16 pb-12 text-neutral-600 text-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+        
+        {/* 4-Column Architectural Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-10 lg:gap-8 pb-14 border-b border-neutral-100">
           
-          {/* Col 1: Logo & Mission */}
-          <div className="space-y-4 md:col-span-1">
-            <div className="w-[150px] h-[40px] flex items-center">
-              <img
-                src={TAGTOP_LOGO_URL}
-                alt="TAGTOP"
-                className="max-h-full max-w-full object-contain object-left rtl:object-right"
-              />
-            </div>
-            <p className="text-xs text-slate-500 leading-relaxed">
+          {/* Col 1: Brand & Identity (4 cols) */}
+          <div className="lg:col-span-4 space-y-4">
+            <a
+              href="#home"
+              onClick={(e) => {
+                e.preventDefault();
+                onViewChange('marketing');
+                onNavigateSubPage('home');
+              }}
+              className="inline-block"
+              aria-label={t.common.brandName}
+            >
+              <div className="w-[140px] sm:w-[155px] h-[38px] flex items-center">
+                <img
+                  src={TAGTOP_LOGO_URL}
+                  alt="TAGTOP"
+                  className="max-h-full max-w-full object-contain object-left rtl:object-right"
+                />
+              </div>
+            </a>
+            <p className="text-xs text-neutral-500 leading-relaxed max-w-sm">
               {t.footer.mission}
             </p>
-            <div className="text-xs text-slate-400">
-              {t.footer.cities}
-            </div>
+            <p className="text-xs font-medium text-neutral-400">
+              {t.common.brandTagline}
+            </p>
           </div>
 
-          {/* Col 2: Navigation */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-black uppercase tracking-wider">
+          {/* Col 2: Navigation (3 cols) */}
+          <div className="lg:col-span-3 space-y-3">
+            <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
               {t.footer.navTitle}
             </h4>
             <ul className="space-y-2 text-xs">
@@ -86,23 +101,36 @@ export const Footer: React.FC<FooterProps> = ({
               </li>
               <li>
                 <a
-                  href="#demo"
+                  href="#about"
                   onClick={(e) => {
                     e.preventDefault();
                     onViewChange('marketing');
-                    onNavigateSubPage('demo');
+                    onNavigateSubPage('about');
                   }}
                   className="hover:text-black transition-colors"
                 >
-                  {t.nav.demo}
+                  {t.nav.about}
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#faq"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onViewChange('marketing');
+                    onNavigateSubPage('faq');
+                  }}
+                  className="hover:text-black transition-colors"
+                >
+                  {t.nav.faq}
                 </a>
               </li>
             </ul>
           </div>
 
-          {/* Col 3: Accès & Solutions */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-black uppercase tracking-wider">
+          {/* Col 3: Services & Solutions (2 cols) */}
+          <div className="lg:col-span-2 space-y-3">
+            <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider">
               {t.footer.spacesTitle}
             </h4>
             <ul className="space-y-2 text-xs">
@@ -110,7 +138,7 @@ export const Footer: React.FC<FooterProps> = ({
                 <button
                   type="button"
                   onClick={() => onViewChange('customer-dashboard')}
-                  className="hover:text-black transition-colors text-left rtl:text-right"
+                  className="hover:text-black transition-colors text-left rtl:text-right cursor-pointer"
                 >
                   {t.common.clientArea}
                 </button>
@@ -122,7 +150,7 @@ export const Footer: React.FC<FooterProps> = ({
                     onViewChange('marketing');
                     onNavigateSubPage('configurator');
                   }}
-                  className="hover:text-black transition-colors text-left rtl:text-right"
+                  className="hover:text-black transition-colors text-left rtl:text-right cursor-pointer"
                 >
                   {t.footer.cardConfigurator}
                 </button>
@@ -134,7 +162,7 @@ export const Footer: React.FC<FooterProps> = ({
                     onViewChange('marketing');
                     onNavigateSubPage('demo');
                   }}
-                  className="hover:text-black transition-colors text-left rtl:text-right"
+                  className="hover:text-black transition-colors text-left rtl:text-right cursor-pointer"
                 >
                   {t.footer.liveDemo}
                 </button>
@@ -142,34 +170,46 @@ export const Footer: React.FC<FooterProps> = ({
             </ul>
           </div>
 
-          {/* Col 4: Trust & Payment Badges */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-black uppercase tracking-wider">
-              {t.footer.paymentTitle}
+          {/* Col 4: Language & Locale (3 cols) */}
+          <div className="lg:col-span-3 space-y-3">
+            <h4 className="text-xs font-bold text-neutral-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5 text-neutral-600 shrink-0" />
+              <span>{t.common.language}</span>
             </h4>
-            <p className="text-xs text-slate-500 leading-relaxed">
-              {t.footer.paymentDesc}
+            <p className="text-xs text-neutral-500">
+              {t.common.ariaSwitchLang}
             </p>
-            <div className="space-y-1 text-xs text-slate-500 pt-1">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>{t.footer.cashOnDelivery}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>{t.footer.cihBank}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>{t.footer.ntagCertified}</span>
-              </div>
+            <div
+              className="inline-flex items-center bg-neutral-100 p-1 rounded-lg border border-neutral-200"
+              dir="ltr"
+              role="group"
+              aria-label={t.common.ariaSwitchLang}
+            >
+              {(['fr', 'ar', 'en'] as Language[]).map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => onLanguageChange(lang)}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer ${
+                    currentLanguage === lang
+                      ? 'bg-white text-black shadow-xs'
+                      : 'text-neutral-500 hover:text-black'
+                  }`}
+                  aria-pressed={currentLanguage === lang}
+                >
+                  {lang.toUpperCase()}
+                </button>
+              ))}
+            </div>
+            <div className="pt-2 text-xs text-neutral-400">
+              <span>{t.hero.codBadge}</span>
             </div>
           </div>
 
         </div>
 
         {/* Bottom Bar: Copyright & Legal */}
-        <div className="pt-8 border-t border-neutral-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-4">
+        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500 gap-4">
           <p>{t.footer.copyright}</p>
           <div className="flex items-center gap-4">
             <button
@@ -178,23 +218,24 @@ export const Footer: React.FC<FooterProps> = ({
                 onViewChange('marketing');
                 onNavigateSubPage('terms');
               }}
-              className="hover:text-black transition-colors"
+              className="hover:text-black transition-colors cursor-pointer"
             >
               {t.footer.terms}
             </button>
-            <span>•</span>
+            <span className="text-neutral-300">•</span>
             <button
               type="button"
               onClick={() => {
                 onViewChange('marketing');
                 onNavigateSubPage('privacy');
               }}
-              className="hover:text-black transition-colors"
+              className="hover:text-black transition-colors cursor-pointer"
             >
               {t.footer.privacy}
             </button>
           </div>
         </div>
+
       </div>
     </footer>
   );

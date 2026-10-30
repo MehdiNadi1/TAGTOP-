@@ -39,46 +39,48 @@ export const FaqSection: React.FC<FaqSectionProps> = ({ currentLanguage }) => {
   ];
 
   return (
-    <section id="faq" className="py-20 bg-neutral-50/50 border-b border-neutral-100">
-      <div className="max-w-4xl mx-auto px-4 sm:px-8">
+    <section id="faq" className="py-20 sm:py-24 bg-[#FAFAFA] border-b border-neutral-200/60">
+      <div className="max-w-3xl mx-auto px-4 sm:px-8">
         
-        {/* Header */}
-        <div className="text-center max-w-2xl mx-auto mb-14">
-          <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-2">
+        {/* Section Header */}
+        <div className="text-center max-w-2xl mx-auto mb-16">
+          <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-2">
             {t.faq.tag}
           </p>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-black tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-neutral-950 tracking-tight text-balance">
             {t.faq.title}
           </h2>
-          <p className="mt-3 text-base text-slate-600">
+          <p className="mt-3 text-base text-neutral-600 leading-relaxed">
             {t.faq.subtitle}
           </p>
         </div>
 
-        {/* Accordion */}
-        <div className="space-y-4">
+        {/* Clean Accordion */}
+        <div className="space-y-3.5">
           {faqs.map((faq, idx) => {
             const isOpen = openIdx === idx;
             return (
               <div
                 key={idx}
-                className="bg-white rounded-2xl border border-neutral-200/80 overflow-hidden transition-all shadow-xs"
+                className="bg-white rounded-2xl border border-neutral-200/90 overflow-hidden transition-all shadow-[0_2px_6px_-2px_rgba(0,0,0,0.03)] hover:border-neutral-300"
               >
                 <button
                   type="button"
                   onClick={() => setOpenIdx(isOpen ? null : idx)}
-                  className="w-full text-left rtl:text-right px-6 py-5 flex items-center justify-between gap-4 font-bold text-base text-slate-900 hover:text-black focus:outline-none"
+                  className="w-full text-left rtl:text-right px-6 sm:px-7 py-5 flex items-center justify-between gap-4 font-bold text-base text-neutral-900 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFD700] cursor-pointer"
                   aria-expanded={isOpen}
                 >
-                  <span>{faq.q}</span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-slate-400 shrink-0 transition-transform duration-200 ${
-                      isOpen ? 'rotate-180 text-amber-500' : ''
+                  <span className="tracking-tight">{faq.q}</span>
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all duration-200 ${
+                      isOpen ? 'bg-[#FFD700] text-black rotate-180' : 'bg-neutral-100 text-neutral-500'
                     }`}
-                  />
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
                 </button>
                 {isOpen && (
-                  <div className="px-6 pb-5 text-sm text-slate-600 leading-relaxed border-t border-neutral-100 pt-3 text-left rtl:text-right">
+                  <div className="px-6 sm:px-7 pb-6 text-sm text-neutral-600 leading-relaxed border-t border-neutral-100 pt-4 text-left rtl:text-right animate-fadeIn">
                     {faq.a}
                   </div>
                 )}
